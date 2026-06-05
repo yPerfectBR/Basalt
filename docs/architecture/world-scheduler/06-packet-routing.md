@@ -68,8 +68,12 @@ Processed on **network thread** or **dedicated session queue** (Phase 1: same as
 |---------|------|--------|
 | Login | `Handlers/Login.cs` | No entity yet |
 | RequestNetworkSettings | `Handlers/RequestNetworkSettings.cs` | Pre-login |
-| ResourcePackClientResponse | `Handlers/ResourcePackClientResponse.cs` | Spawns entity — enqueue spawn message instead of inline spawn in Phase 3 |
-| (partial) Disconnect | `Network.cs` | Session teardown orchestration |
+
+### Pre-entity world-bound (enqueued to default world worker)
+
+| Handler | File | Reason |
+|---------|------|--------|
+| ResourcePackClientResponse | `Handlers/ResourcePackClientResponse.cs` | Session exists but entity not spawned yet; routed to default world worker, triggers attach before spawn |
 
 ### World-bound handlers (must run on owning worker)
 
@@ -201,8 +205,11 @@ If multiple sessions share a worker, their messages interleave — acceptable fo
 When `world-scheduler-debug=true`:
 
 ```
-[PacketIngress] enqueue worker=1 session=PlayerName packetId=PlayerAuthInput
-[Worker:1] ProcessPacketMessage session=PlayerName durationMs=0.3
+[PacketIngress] inline packet=Login
+[PacketIngress] enqueue worker=0 packet=PlayerAuthInput
+[Attach] world=world worker=0
+[Worker:0] ProcessPacketMessage packet=PlayerAuthInput durationMs=0.08
+[Detach] world=world worker=0
 ```
 
 ---

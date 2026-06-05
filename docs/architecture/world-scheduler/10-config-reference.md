@@ -14,6 +14,7 @@ Add to [`Basalt/Properties.cs`](../../../Basalt/Properties.cs) with `ServerPrope
 | `world-scheduler-enabled` | bool | `false` | 3 | Enable multi-worker pool; `false` uses Phase 1 single-thread queue |
 | `world-scheduler-debug` | bool | `false` | 1 | Verbose scheduler/packet routing logs |
 | `world-default-allowed-workers` | int[] | *(empty)* | 3 | Fallback worker indices when a world has no `world.json`. Empty = all workers `0..count-1` |
+| `additional-worlds` | string | `world_copy` | 4 | Comma-separated world ids to load from `worlds/{id}` at startup |
 
 Parser example: `"1,2"` → `[1, 2]`. Empty string → `[0, 1, …, count-1]`.
 

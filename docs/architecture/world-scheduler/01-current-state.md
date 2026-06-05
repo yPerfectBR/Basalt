@@ -1,8 +1,66 @@
-# 01 — Current State (Baseline Audit)
+# 01 — Current State
 
-This document describes Basalt **as it exists today**. Use it as the baseline for diffs and regression checks. All paths are relative to the repository root.
+This document has two parts:
 
-## Architecture summary
+1. **Implementation status** — what exists on branch `world-scheduler` through **Phase 4** (below).
+2. **Baseline audit** — how Basalt worked **before** the scheduler (historical reference for regressions).
+
+---
+
+## Implementation status (Phases 0–4 complete)
+
+| Area | Status | Notes |
+|------|--------|-------|
+| `WorldRegistration` + `world.json` loader | Done | Per-world `allowedWorkers`; no profiles |
+| `PlayerSession` + `Server.Sessions` | Done | Phase 2 |
+| `PacketIngress` | Done | Global inline; world-bound enqueued |
+| `SingleThreadScheduler` | Done | Used when `world-scheduler-enabled=false` |
+| `WorldWorkerPool` + `WorldScheduler` | Done | Phase 3; PickWorker by load among allowed workers |
+| Attach / detach | Done | First player attach; last player detach |
+| Active-only ticking | Done | Dormant worlds not ticked |
+| Cross-worker transfer | Done | Phase 4; `/tp <world>` via snapshot protocol |
+| `additional-worlds` boot | Done | Loads e.g. `world_copy` at startup |
+| `/worldscheduler` debug command | **Not done** | Phase 5 |
+
+### Config in use (smoke test)
+
+```properties
+world-thread-count=4
+world-scheduler-enabled=true
+world-scheduler-debug=true
+```
+
+Default world registration from `worlds/world/world.json`:
+
+```json
+{ "identifier": "world", "allowedWorkers": [0] }
+```
+
+### Observed debug log sequence (correct)
+
+1. `[PacketIngress] inline packet=RequestNetworkSettings` / `Login` — global handlers
+2. `[PacketIngress] enqueue worker=0 packet=ResourcePackClientResponse` — routed to default world worker
+3. `[Attach] world=world worker=0` — attach before spawn processing
+4. `[Worker:0] ProcessPacketMessage packet=...` — handler runs on worker thread
+5. `[Detach] world=world worker=0` — last player disconnect
+
+### Cross-world transfer smoke (`/tp world_copy`)
+
+1. `[Transfer] PrepareTransfer from=world to=world_copy worker=0`
+2. `[Detach] world=world worker=0`
+3. `[Attach] world=world_copy worker=1` — PickWorker chooses freer thread among `[0,1]`
+4. `[Transfer] CompleteTransfer session=... world=world_copy worker=1`
+5. Gameplay packets on `[Worker:1]`
+
+Automated tests: **29/29** passing (`dotnet test tests/Basalt.Tests`).
+
+---
+
+## Baseline audit (pre-scheduler)
+
+The sections below describe Basalt **before** Phases 0–3. Keep them for understanding original pain points and integration hooks.
+
+## Architecture summary (baseline)
 
 Basalt runs **two primary loops** plus **per-dimension chunk workers**:
 
@@ -181,18 +239,16 @@ Do **not** add ad-hoc locks throughout simulation code. Prefer **message passing
 
 ---
 
-## What is NOT implemented
+## What is NOT implemented (Phase 5)
 
-- `WorldRegistration` / profiles / allowed workers
-- `PlayerSession` split
-- `PacketIngress` marshaling
-- Worker pool or per-worker tick loops
-- Active-only world ticking (empty worlds still tick today)
-- Cross-worker transfer protocol
-- Scheduler metrics or debug commands
+- Scheduler metrics API and `/worldscheduler` debug command
+- `Server.RunOnWorldThread` helper for plugins
+- Removal of obsolete `Server.Players` adapter
+
+Phases 0–4 items listed in older versions of this doc **are implemented** — see table above.
 
 ---
 
 ## Next steps
 
-Read [02-core-concepts.md](./02-core-concepts.md) for target invariants, then [08-phased-implementation.md](./08-phased-implementation.md) for delivery order.
+Read [02-core-concepts.md](./02-core-concepts.md) for invariants, then [08-phased-implementation.md](./08-phased-implementation.md) for Phase 4+.

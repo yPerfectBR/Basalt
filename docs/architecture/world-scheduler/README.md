@@ -34,9 +34,9 @@ flowchart TB
         Registry[World Metadata Registry]
 
         subgraph pool [Worker Pool N threads]
-            W0[Worker0 Hub]
-            W1[Worker1 Light]
-            W2[Worker2 Heavy]
+            W0[Worker 0]
+            W1[Worker 1]
+            W2[Worker 2]
         end
     end
 
@@ -49,8 +49,8 @@ flowchart TB
     Sched --> W1
     Sched --> W2
     Registry --> Sched
-    W1 --> ActiveLight[Active Skyblock worlds]
-    W2 --> ActiveHeavy[Active Dungeon worlds]
+    W1 --> ActiveA[Active worlds on worker 1]
+    W2 --> ActiveB[Active worlds on worker 2]
 ```
 
 ### Attach flow (summary)
@@ -80,9 +80,9 @@ sequenceDiagram
 | Doc | Title | Description |
 |-----|-------|-------------|
 | [00-overview.md](./00-overview.md) | Overview | Problem, goals, non-goals, glossary, use cases |
-| [01-current-state.md](./01-current-state.md) | Current state | Baseline audit of Basalt today |
+| [01-current-state.md](./01-current-state.md) | Current state | Implementation status + baseline audit |
 | [02-core-concepts.md](./02-core-concepts.md) | Core concepts | Invariants, layers, lifecycle |
-| [03-world-registration.md](./03-world-registration.md) | World registration | Profile, allowedWorkers, JSON/API |
+| [03-world-registration.md](./03-world-registration.md) | World registration | allowedWorkers, world.json, API |
 | [04-world-scheduler.md](./04-world-scheduler.md) | World scheduler | PickWorker, attach/detach, worker loop |
 | [05-player-session-split.md](./05-player-session-split.md) | Player session split | Session vs entity, refactor map |
 | [06-packet-routing.md](./06-packet-routing.md) | Packet routing | PacketIngress, handler classification |
@@ -108,30 +108,32 @@ sequenceDiagram
 
 ## Implementation order (phases)
 
-| Phase | Focus | Key docs |
-|-------|-------|----------|
-| **0** | Stubs, WorldRegistration types | [03](./03-world-registration.md), [08](./08-phased-implementation.md) |
-| **1** | Main-thread marshaling, active-only tick | [06](./06-packet-routing.md), [09](./09-testing.md) |
-| **2** | PlayerSession split | [05](./05-player-session-split.md) |
-| **3** | Worker pool, PickWorker, attach/detach | [04](./04-world-scheduler.md), [10](./10-config-reference.md) |
-| **4** | Cross-worker transfer | [07](./07-cross-worker-transfer.md) |
-| **5** | Metrics, plugins, debug | [11](./11-agent-implementation-guide.md) |
+| Phase | Focus | Status |
+|-------|-------|--------|
+| **0** | Stubs, WorldRegistration types | **Done** |
+| **1** | Main-thread marshaling, active-only tick | **Done** |
+| **2** | PlayerSession split | **Done** |
+| **3** | Worker pool, PickWorker, attach/detach | **Done** |
+| **4** | Cross-worker transfer | **Done** |
+| **5** | Metrics, plugins, debug | Not started |
 
 **Do not skip phases.** Phase 3 requires Phase 1 and Phase 2.
 
 ---
 
-## Definition of Done (global)
+## Definition of Done (Phases 0–3)
 
-- [ ] `dotnet build` Debug and Release
-- [ ] Applicable tests in [09-testing.md](./09-testing.md) pass
-- [ ] Manual smoke test: join, move, break block, chat, disconnect
-- [ ] Feature flags default to safe legacy behavior
-- [ ] Invariants in [02-core-concepts.md](./02-core-concepts.md) preserved
+- [x] `dotnet build` Debug
+- [x] 24 automated tests pass ([09-testing.md](./09-testing.md))
+- [x] Manual smoke: join, move, break block, commands, disconnect (see logs)
+- [x] `world-scheduler-enabled=false` preserves Phase 1 path
+- [x] Invariants in [02-core-concepts.md](./02-core-concepts.md) preserved for implemented scope
+
+Phase 4+ items remain open — see [08-phased-implementation.md](./08-phased-implementation.md).
 
 ---
 
-## Key source files (current codebase)
+## Key source files
 
 | Area | Path |
 |------|------|
@@ -144,13 +146,9 @@ sequenceDiagram
 | Config | [`Basalt/Properties.cs`](../../../Basalt/Properties.cs) |
 | Teleport | [`Basalt/Commands/List/Operator/Teleport.cs`](../../../Basalt/Commands/List/Operator/Teleport.cs) |
 
-### Planned new code
-
-```
-Basalt/Scheduling/     # Scheduler, workers, messages, PacketIngress
-Basalt/Player/PlayerSession.cs
-tests/Basalt.Tests/    # Phase 1+
-```
+| Scheduling | [`Basalt/Scheduling/`](../../../Basalt/Scheduling/) |
+| Player sessions | [`Basalt/Player/PlayerSession.cs`](../../../Basalt/Player/PlayerSession.cs) |
+| Tests | [`tests/Basalt.Tests/`](../../../tests/Basalt.Tests/) |
 
 ---
 

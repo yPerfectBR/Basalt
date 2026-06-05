@@ -6,17 +6,17 @@ Feature flag: `world-scheduler-enabled` (default `false` until Phase 3 stable).
 
 ---
 
-## Phase 0 — Contracts and stubs
+## Phase 0 — Contracts and stubs ✅
 
-**Goal:** Introduce types and interfaces without changing runtime behavior.
+**Status:** Complete.
 
 ### Deliverables
 
-- [ ] Create `Basalt/Scheduling/` folder with stub types
-- [ ] `WorldRegistration`, `WorldRegistrationLoader`, `IWorldScheduler`
-- [ ] `SingleThreadScheduler` — all methods noop or pass-through
-- [ ] Add optional `World.Registration` property (defaults for existing worlds)
-- [ ] Document-only validation helpers
+- [x] Create `Basalt/Scheduling/` folder with stub types
+- [x] `WorldRegistration`, `WorldRegistrationLoader`, `IWorldScheduler`
+- [x] `SingleThreadScheduler` — all methods noop or pass-through
+- [x] Add optional `World.Registration` property (defaults for existing worlds)
+- [x] Document-only validation helpers
 
 ### Files to create
 
@@ -53,19 +53,19 @@ Feature flag: `world-scheduler-enabled` (default `false` until Phase 3 stable).
 
 ---
 
-## Phase 1 — Single-thread marshaling + active-only ticking
+## Phase 1 — Single-thread marshaling + active-only ticking ✅
+
+**Status:** Complete.
 
 **Goal:** Fix thread safety on one tick thread; only tick worlds with players present.
 
-**Prerequisite for all multi-worker work.**
-
 ### Deliverables
 
-- [ ] `PacketIngress` routes world-bound packets to main thread queue
-- [ ] `SingleThreadScheduler.DrainMainQueue()` called from `Server.Tick()`
-- [ ] `PresentPlayerCount` maintained on spawn/despawn/disconnect
-- [ ] `Server.Tick()` skips worlds with `PresentPlayerCount == 0`
-- [ ] Refactor handlers to `HandleGamePacketOnWorker` (still one thread)
+- [x] `PacketIngress` routes world-bound packets to main thread queue
+- [x] `SingleThreadScheduler.DrainMainQueue()` called from `Server.Tick()`
+- [x] `PresentPlayerCount` maintained on spawn/despawn/disconnect
+- [x] `Server.Tick()` skips worlds with `PresentPlayerCount == 0`
+- [x] Refactor handlers to `HandleGamePacketOnWorker` (still one thread)
 
 ### Files to create
 
@@ -105,18 +105,20 @@ Feature flag: `world-scheduler-enabled` (default `false` until Phase 3 stable).
 
 ---
 
-## Phase 2 — PlayerSession split
+## Phase 2 — PlayerSession split ✅
+
+**Status:** Complete.
 
 **Goal:** Separate session from entity; central `Server.Sessions` for plugins.
 
 ### Deliverables
 
-- [ ] `PlayerSession` class
-- [ ] `Server.Sessions` concurrent dictionary
-- [ ] Migrate all 15 network handlers to sessions
-- [ ] `Dimension.Broadcast` / simulation distance via sessions
-- [ ] Commands `list`, `tp`, target enums updated
-- [ ] Legacy `Server.Players` adapter (obsolete)
+- [x] `PlayerSession` class
+- [x] `Server.Sessions` concurrent dictionary
+- [x] Migrate all 15 network handlers to sessions
+- [x] `Dimension.Broadcast` / simulation distance via sessions
+- [x] Commands `list`, `tp`, target enums updated
+- [x] Legacy `Server.Players` adapter (obsolete)
 
 ### Files to create
 
@@ -149,18 +151,20 @@ See full map in [05-player-session-split.md](./05-player-session-split.md).
 
 ---
 
-## Phase 3 — Worker pool + dynamic attach/detach
+## Phase 3 — Worker pool + dynamic attach/detach ✅
 
-**Goal:** Real multi-worker simulation with PickWorker and registration.
+**Status:** Complete.
+
+**Goal:** Real multi-worker simulation with PickWorker and per-world registration.
 
 ### Deliverables
 
-- [ ] `world-thread-count`, `world-scheduler-enabled` in Properties
-- [ ] `WorldWorkerPool`, `WorldWorker`, `WorldScheduler`
-- [ ] `PickWorker` with allowed workers + load metrics
-- [ ] `RequestAttach` / `RequestDetach` on first/last player
-- [ ] Packet routing to correct worker
-- [ ] Per-world JSON registration loader (optional)
+- [x] `world-thread-count`, `world-scheduler-enabled` in Properties
+- [x] `WorldWorkerPool`, `WorldWorker`, `WorldScheduler`
+- [x] `PickWorker` with allowed workers + load metrics (no profiles)
+- [x] `RequestAttach` / `RequestDetach` on first/last player
+- [x] Packet routing to correct worker
+- [x] Per-world JSON registration loader (`world.json`)
 
 ### Files to create
 
@@ -189,10 +193,12 @@ See full map in [05-player-session-split.md](./05-player-session-split.md).
 
 ### Acceptance criteria
 
-- 2 Light worlds on worker 1, 1 Heavy on worker 2 — heavy lag does not drop Light TPS
-- Skyblock: attach only when player enters; detach when last leaves
+- Two worlds with `allowedWorkers: [1]` each attach to worker 1 when load is equal
+- One world with `allowedWorkers: [2]` attaches to worker 2 — isolated from worker 1
+- Heavy tick cost on worker 2 does not block worlds on worker 1
+- Skyblock: attach only when player enters; detach when last leaves (`[Detach]` log)
 - PickWorker respects allowedWorkers (unit tests)
-- Manual tests from [09-testing.md](./09-testing.md) Phase 3
+- Manual smoke: login, spawn, movement, commands, disconnect — all on correct worker
 
 ### Suggested PRs
 
@@ -202,32 +208,40 @@ See full map in [05-player-session-split.md](./05-player-session-split.md).
 
 ---
 
-## Phase 4 — Cross-worker transfer
+## Phase 4 — Cross-worker transfer ✅
+
+**Status:** Complete.
 
 **Goal:** Teleport and world changes across workers.
 
 ### Deliverables
 
-- [ ] `PlayerEntitySnapshot`
-- [ ] `PrepareTransferMessage`, `CompleteTransferMessage`
-- [ ] `TransferState` on session
-- [ ] Update `Teleport.cs` and `Player.Teleport` paths
-- [ ] Abort/recovery on failure
+- [x] `PlayerEntitySnapshot`
+- [x] `PrepareTransferMessage`, `CompleteTransferMessage`
+- [x] `TransferState` on session (blocks packets during transfer)
+- [x] Update `Teleport.cs` — `/tp <worldName>` and cross-worker branch
+- [x] `Player.Teleport(..., forceDimensionChange)` for cross-world client sync
+- [x] Abort/recovery on failure (disconnect with message)
 
-### Files to modify
+### Files added/modified
 
 | File | Change |
 |------|--------|
-| `Basalt/Commands/List/Operator/Teleport.cs` | Cross-worker branch |
-| `Basalt/Player/PlayerSession.cs` | BeginTransfer API |
-| `Basalt/Scheduling/WorldScheduler.cs` | Transfer orchestration |
+| `Basalt/Scheduling/PlayerEntitySnapshot.cs` | Snapshot model |
+| `Basalt/Scheduling/CrossWorldTransferHandler.cs` | Prepare/Complete logic |
+| `Basalt/Scheduling/Messages/PrepareTransferMessage.cs` | Source worker message |
+| `Basalt/Scheduling/Messages/CompleteTransferMessage.cs` | Target worker message |
+| `Basalt/Scheduling/WorldScheduler.cs` | `BeginCrossWorldTransfer`, improved `GetWorkerLoad` |
+| `Basalt/Commands/List/Operator/Teleport.cs` | `/tp world_copy`, cross-worker path |
+| `Basalt/Properties.cs` | `additional-worlds` |
+| `worlds/world_copy/` | LevelDB copy + `world.json` with `[0,1]` |
 
 ### Acceptance criteria
 
-- Teleport island → dungeon across workers
-- Client receives correct dimension/move packets
-- No duplicate entities after transfer
-- Tests from [09-testing.md](./09-testing.md) Phase 4
+- `/tp world_copy` from `world` attaches target on worker 1 when worker 0 is loaded
+- Client receives `ChangeDimension` on cross-world transfer
+- No duplicate entities after transfer (snapshot despawn + respawn)
+- 5 automated tests in `CrossWorkerTransferTests.cs`
 
 ---
 

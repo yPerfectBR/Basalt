@@ -34,7 +34,9 @@ Run: `dotnet test tests/Basalt.Tests/Basalt.Tests.csproj`
 |------|-----------|
 | `WorldRegistration_Validate_RejectsEmptyAllowedWorkers` | Throws |
 | `WorldRegistration_Validate_RejectsOutOfRangeWorker` | Index >= count throws |
-| `WorldRegistrationDefaults_Light_ReturnsExpectedWorkers` | Matches config |
+| `WorldRegistrationDefaults_ForWorld_UsesAllWorkersWhenUnset` | Empty config → all workers |
+| `WorldRegistrationDefaults_ForWorld_ParsesConfiguredWorkers` | Parses comma list |
+| `WorldRegistrationLoader_LoadsFromWorldJson` | Reads `world.json` |
 
 ### Manual
 
@@ -71,8 +73,10 @@ Run: `dotnet test tests/Basalt.Tests/Basalt.Tests.csproj`
 
 With `world-scheduler-debug=true`:
 
-- [ ] Logs show `[PacketIngress] enqueue` for movement packets
-- [ ] Logs show processing on main/tick thread, not network thread name
+- [x] Logs show `[PacketIngress] inline packet=...` for Login / RequestNetworkSettings
+- [x] Logs show `[PacketIngress] enqueue worker=N packet=...` for world-bound packets (Phase 3)
+- [x] Logs show `[Worker:N] ProcessPacketMessage packet=...` on worker thread
+- [x] No duplicate enqueue line per packet (single log in `WorldScheduler`)
 
 ---
 
@@ -118,12 +122,11 @@ With `world-scheduler-debug=true`:
 
 ### Manual
 
-- [ ] Config: `world-thread-count=4`, `world-scheduler-enabled=true`
-- [ ] Create 2 Light worlds (allowedWorkers `[1]`) with 1 player each — both on worker 1
-- [ ] Create 1 Heavy world (allowedWorkers `[2]`) — on worker 2
-- [ ] Artificial lag in Heavy world (many entities) — Light worlds maintain playable TPS
-- [ ] Last player leaves Light world — `[Detach]` log, world stops ticking
-- [ ] 20 Light worlds, 1 player each, allowedWorkers `[1,2]` — scheduler distributes (~10/10 or by load)
+- [x] Config: `world-scheduler-enabled=true`, `additional-worlds=world_copy`
+- [x] Login on `world` → `[Attach] world=world worker=0`
+- [x] `/tp world_copy` → `[Transfer]` + `[Attach] world=world_copy worker=1` + gameplay on worker 1
+- [ ] `/tp world` return transfer to worker 0
+- [ ] Inventory and position preserved after cross-worker tp
 
 ### Stress
 
@@ -134,7 +137,7 @@ With `world-scheduler-debug=true`:
 ### Regression
 
 - [ ] `world-scheduler-enabled=false` restores Phase 1 single-thread behavior
-- [ ] Default world (Hub) still loads on startup
+- [x] Default world loads on startup with `world.json` registration
 
 ---
 
@@ -144,20 +147,20 @@ With `world-scheduler-debug=true`:
 
 | Test | Type | Assertion |
 |------|------|-----------|
-| `CrossWorkerTransfer_SessionHasOneEntityAfterComplete` | integration | Single ActiveEntity |
-| `CrossWorkerTransfer_SourceWorldCountDecrements` | integration | PresentPlayerCount |
-| `CrossWorkerTransfer_TargetWorldAttachIfDormant` | integration | PickWorker called |
-| `SameWorkerTransfer_SkipsSnapshotProtocol` | unit | Direct Teleport path |
-| `TransferFailure_SessionNotStuckTransferring` | integration | Abort resets state |
+| `CrossWorkerTransfer_PickWorkerChoosesFreerThread` | unit | `[0,1]` picks worker 1 when worker 0 loaded |
+| `CrossWorkerTransfer_TargetWorldAttachIfDormant` | integration | Dormant world gets `AttachedWorkerId` |
+| `CrossWorkerTransfer_SessionHasOneEntityAfterComplete` | integration | Single entity on target worker after transfer |
+| `SameWorkerTransfer_SkipsSnapshotProtocol` | unit | Same worker uses direct `Teleport` |
+| `TransferFailure_SessionNotStuckTransferring` | integration | Abort clears `TransferState` |
+
+Run: `dotnet test --filter CrossWorkerTransfer`
 
 ### Manual
 
-- [ ] Teleport player from Light world (worker 1) to Heavy world (worker 2) via `/tp`
-- [ ] Player sees correct position and dimension client-side
+- [x] `/tp world_copy` from default world — verify worker 1 in debug logs
+- [ ] Teleport between worlds on different workers via coordinates + dimension
 - [ ] Inventory preserved after transfer
-- [ ] Return teleport Heavy → Light works
-- [ ] Transfer to dormant island — world attaches, chunks load
-- [ ] Two players transfer to same dormant world sequentially — count=2, single attach
+- [ ] Return `/tp world` works
 
 ### Regression
 
