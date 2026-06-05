@@ -4,6 +4,7 @@ using System.Buffers;
 using Basalt.Binary;
 using Basalt.Server.Events;
 using Basalt.Server.Network.Handlers;
+using Basalt.Server.Scheduling;
 using Basalt.Protocol.Enums;
 using Basalt.Protocol.Packets;
 using Basalt.RakNet;
@@ -19,10 +20,12 @@ public sealed class NetworkHandler
     private const int MaxPacketSize = 1024 * 1024 * 4;
 
     private readonly Server _server;
+    private readonly PacketIngress _ingress;
 
     public NetworkHandler(Server server)
     {
         _server = server;
+        _ingress = new PacketIngress(server);
     }
 
     internal void ProcessDisconnectOnWorker(NetworkConnection connection)
@@ -66,7 +69,7 @@ public sealed class NetworkHandler
 
     public void HandleDisconnected(NetworkConnection connection)
     {
-        ProcessDisconnectOnWorker(connection);
+        _server.Scheduler.EnqueueDisconnect(connection);
     }
 
     public void HandlePacket(NetworkConnection connection, ReadOnlyMemory<byte> payload)
@@ -101,7 +104,7 @@ public sealed class NetworkHandler
                     uint header = packetReader.ReadVarUInt();
                     PacketId packetId = (PacketId)(header & 0x3FF);
 
-                    HandleGamePacketOnWorker(connection, packetId, packetBuffer);
+                    _ingress.Route(connection, packetId, packetBuffer);
                 }
                 catch (Exception exception)
                 {

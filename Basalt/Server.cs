@@ -270,6 +270,7 @@ public sealed class Server
             cancellation?.Dispose();
         }
 
+        _scheduler.Stop();
         Logger.Info("Basalt successfully stopped.");
     }
 
@@ -429,6 +430,7 @@ public sealed class Server
 
     public void Tick()
     {
+        _scheduler.DrainMainQueue();
         long startTimestamp = Stopwatch.GetTimestamp();
         _raknet.Tick();
         foreach (WorldInstance world in _worlds.Values.ToArray())
