@@ -40,6 +40,11 @@ public sealed class NetworkHandler
 
         (player.Dimension?.World?.Provider ?? _server.GetWorld().Provider).SavePlayerData(player.Xuid, player.WriteToNbt());
 
+        if (player.Dimension?.World is global::Basalt.Server.World.World world)
+        {
+            WorldPlayerPresence.OnPlayerLeftWorld(_server, world);
+        }
+
         string leaveMessage = $"§e{player.Username} left the server.";
         foreach (global::Basalt.Server.Player.Player target in _server.Players.Values)
         {

@@ -200,6 +200,10 @@ public static class ResourcePackClientResponse
                     }
 
                     player.Spawn(dimension, spawnSignal.Options);
+                    if (dimension.World is not null)
+                    {
+                        Basalt.Server.Scheduling.WorldPlayerPresence.OnPlayerEnteredWorld(server, dimension.World);
+                    }
                 }
 
                 byte[] itemRegistryPayload = ItemPalette.GetItemRegistryPayload();

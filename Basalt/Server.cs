@@ -435,6 +435,11 @@ public sealed class Server
         _raknet.Tick();
         foreach (WorldInstance world in _worlds.Values.ToArray())
         {
+            if (world.PresentPlayerCount <= 0)
+            {
+                continue;
+            }
+
             long worldStartTimestamp = Stopwatch.GetTimestamp();
             world.Tick();
             long worldEndTimestamp = Stopwatch.GetTimestamp();
