@@ -63,7 +63,7 @@ public sealed class SingleThreadScheduler : IWorldScheduler
             {
                 WorkerId = 0,
                 ActiveWorldCount = activeWorldCount,
-                TotalPresentPlayers = _server.Players.Count,
+                TotalPresentPlayers = _server.Sessions.Count,
                 Tps = _server.Tps
             }
         ];

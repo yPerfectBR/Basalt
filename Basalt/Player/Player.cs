@@ -37,6 +37,11 @@ public sealed class Player : Entity.Entity
     public int LastActionFace { get; set; }
     public Dictionary<int, Container> openedContainers = [];
 
+    /// <summary>Null for NPCs and fake players.</summary>
+    public PlayerSession? Session { get; internal set; }
+
+    public bool IsOnline => Session is not null;
+
     public Player(string username, string xuid, Guid uuid) :
         base(EntityIdentifier.Player.ToIdentifierString())
     {

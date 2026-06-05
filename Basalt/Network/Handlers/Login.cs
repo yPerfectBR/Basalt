@@ -3,6 +3,7 @@ namespace Basalt.Server.Network.Handlers;
 using Basalt.Binary;
 using Basalt.Server;
 using Basalt.Server.Events;
+using Basalt.Server.Player;
 using Basalt.Protocol;
 using Basalt.Protocol.Enums;
 using Basalt.Protocol.Io;
@@ -135,10 +136,25 @@ public static class Login
             return;
         }
 
+        player.SetSkin(Skin.FromClientData(clientData));
+
+        PlayerSession session = new()
+        {
+            Connection = connection,
+            Network = server.Network,
+            Username = identity.Username,
+            Xuid = playerXuid,
+            Uuid = playerUuid,
+            DeviceOS = clientData.DeviceOs,
+            Skin = Skin.FromClientData(clientData),
+            ActiveEntity = player
+        };
+        session.SetOperator(isOperator);
+        player.Session = session;
         player.Connection = connection;
         player.Network = server.Network;
         player.DeviceOS = clientData.DeviceOs;
-        player.SetSkin(Skin.FromClientData(clientData));
+        server.Sessions[connection] = session;
         server.Players[connection] = player;
 
         PlayStatusPacket status = new(PlayStatus.LoginSuccess);

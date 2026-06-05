@@ -28,7 +28,7 @@ public sealed class PacketIngress
             return;
         }
 
-        if (!_server.Players.ContainsKey(connection))
+        if (!_server.Sessions.ContainsKey(connection))
         {
             return;
         }

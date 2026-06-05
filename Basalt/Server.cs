@@ -1,5 +1,6 @@
 namespace Basalt.Server;
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Basalt.Server.Commands;
 using Basalt.Server.Network;
@@ -13,6 +14,7 @@ using Basalt.Server.World;
 using Basalt.Server.World.Dimension.Generation;
 using Basalt.Server.World.Dimension.Provider;
 
+using Basalt.Server.Player;
 using PlayerInstance = Basalt.Server.Player.Player;
 using WorldInstance = Basalt.Server.World.World;
 
@@ -60,9 +62,14 @@ public sealed class Server
     private ulong _serverTickValue;
     private readonly Dictionary<ServerEvent, List<Delegate>> _signalHandlers = [];
     /// <summary>
-    /// Registry for players
+    /// Registry for players (legacy; use <see cref="Sessions"/>).
     /// </summary>
     public readonly Dictionary<NetworkConnection, PlayerInstance> Players = new();
+
+    /// <summary>
+    /// Central registry of connected player sessions.
+    /// </summary>
+    public ConcurrentDictionary<NetworkConnection, PlayerSession> Sessions { get; } = new();
     /// <summary>
     /// Registry for commands
     /// </summary>
