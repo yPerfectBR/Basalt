@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -38,6 +38,10 @@
 
   <ItemGroup>
     <PackageReference Include="LevelDB.Standard" Version="2.1.6.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Basalt.Tests" />
   </ItemGroup>
 
 </Project>
