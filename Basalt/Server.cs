@@ -57,6 +57,7 @@ public sealed class Server
     private Task? _tickLoopTask;
     private long _lastTpsTimestamp;
     private ulong _lastTpsTick;
+    private ulong _serverTickValue;
     private readonly Dictionary<ServerEvent, List<Delegate>> _signalHandlers = [];
     /// <summary>
     /// Registry for players
@@ -431,6 +432,7 @@ public sealed class Server
     public void Tick()
     {
         _scheduler.DrainMainQueue();
+        _serverTickValue++;
         long startTimestamp = Stopwatch.GetTimestamp();
         _raknet.Tick();
         foreach (WorldInstance world in _worlds.Values.ToArray())
@@ -455,11 +457,11 @@ public sealed class Server
         if (_lastTpsTimestamp == 0)
         {
             _lastTpsTimestamp = timestamp;
-            _lastTpsTick = GetWorld().TickValue;
+            _lastTpsTick = _serverTickValue;
             return;
         }
 
-        ulong tickDelta = GetWorld().TickValue - _lastTpsTick;
+        ulong tickDelta = _serverTickValue - _lastTpsTick;
         if (tickDelta < TpsUpdateIntervalTicks)
         {
             return;
@@ -475,7 +477,7 @@ public sealed class Server
         double currentTps = Math.Min(20.0, tickDelta / elapsedSeconds);
         Tps = Tps == 0 ? currentTps : Tps + ((currentTps - Tps) * 0.2);
         _lastTpsTimestamp = timestamp;
-        _lastTpsTick = GetWorld().TickValue;
+        _lastTpsTick = _serverTickValue;
     }
 
     private static double GRTM(long deadlineTimestamp, long timestamp)
