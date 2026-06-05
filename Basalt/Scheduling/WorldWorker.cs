@@ -37,6 +37,21 @@ public sealed class WorldWorker
         Metrics = new WorkerLoadMetrics { WorkerId = workerId };
     }
 
+    internal void RefreshMetrics()
+    {
+        Metrics.ActiveWorldCount = _attachedWorlds.Count;
+        Metrics.TotalPresentPlayers = 0;
+        foreach (WorldInstance world in _attachedWorlds.Values)
+        {
+            Metrics.TotalPresentPlayers += world.PresentPlayerCount;
+        }
+    }
+
+    internal bool HasAttachedWorld(string worldName)
+    {
+        return _attachedWorlds.ContainsKey(worldName);
+    }
+
     public void Start()
     {
         if (_loopTask is not null)
@@ -208,9 +223,11 @@ public sealed class WorldWorker
         {
             DetachWorldMessage => 0,
             AttachWorldMessage => 1,
-            ProcessDisconnectMessage => 2,
-            ProcessPacketMessage => 3,
-            _ => 4
+            CompleteTransferMessage => 2,
+            PrepareTransferMessage => 3,
+            ProcessDisconnectMessage => 4,
+            ProcessPacketMessage => 5,
+            _ => 6
         };
     }
 
@@ -233,6 +250,14 @@ public sealed class WorldWorker
             case ProcessDisconnectMessage disconnectMessage:
                 _server.Network.ProcessDisconnectOnWorker(disconnectMessage.Connection);
                 break;
+
+            case PrepareTransferMessage prepareMessage:
+                CrossWorldTransferHandler.HandlePrepareTransfer(_server, this, prepareMessage);
+                break;
+
+            case CompleteTransferMessage completeMessage:
+                CrossWorldTransferHandler.HandleCompleteTransfer(_server, this, completeMessage);
+                break;
         }
     }
 
@@ -245,6 +270,7 @@ public sealed class WorldWorker
         }
 
         _attachedWorlds[world.Name] = world;
+        RefreshMetrics();
 
         if (_server.Properties.WorldSchedulerDebug)
         {
@@ -263,6 +289,7 @@ public sealed class WorldWorker
 
         _attachedWorlds.Remove(world.Name);
         world.AttachedWorkerId = null;
+        RefreshMetrics();
 
         if (_server.Properties.WorldSchedulerDebug)
         {
