@@ -25,7 +25,7 @@ public sealed class NetworkHandler
         _server = server;
     }
 
-    public void HandleDisconnected(NetworkConnection connection)
+    internal void ProcessDisconnectOnWorker(NetworkConnection connection)
     {
         if (!_server.Players.Remove(connection, out global::Basalt.Server.Player.Player? player))
         {
@@ -36,7 +36,6 @@ public sealed class NetworkHandler
         _server.Emit(new PlayerLeaveSignal(player, options));
 
         (player.Dimension?.World?.Provider ?? _server.GetWorld().Provider).SavePlayerData(player.Xuid, player.WriteToNbt());
-        
 
         string leaveMessage = $"§e{player.Username} left the server.";
         foreach (global::Basalt.Server.Player.Player target in _server.Players.Values)
@@ -63,6 +62,11 @@ public sealed class NetworkHandler
         _server.Broadcast(removePlayer);
 
         Logger.Info($"Player {player.Username} disconnected.");
+    }
+
+    public void HandleDisconnected(NetworkConnection connection)
+    {
+        ProcessDisconnectOnWorker(connection);
     }
 
     public void HandlePacket(NetworkConnection connection, ReadOnlyMemory<byte> payload)
@@ -97,7 +101,7 @@ public sealed class NetworkHandler
                     uint header = packetReader.ReadVarUInt();
                     PacketId packetId = (PacketId)(header & 0x3FF);
 
-                    HandleGamePacket(connection, packetId, packetBuffer);
+                    HandleGamePacketOnWorker(connection, packetId, packetBuffer);
                 }
                 catch (Exception exception)
                 {
@@ -118,7 +122,7 @@ public sealed class NetworkHandler
         }
     }
 
-    private void HandleGamePacket(NetworkConnection connection, PacketId packetId, ReadOnlySpan<byte> packetBuffer)
+    internal void HandleGamePacketOnWorker(NetworkConnection connection, PacketId packetId, ReadOnlySpan<byte> packetBuffer)
     {
         // Logger.Debug($"Received packet {packetId}");
         switch (packetId)
