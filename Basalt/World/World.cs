@@ -47,7 +47,7 @@ public sealed class World : IDisposable, Tickable
     public IEnumerable<DimensionInstance> Dimensions => _dimensions.Values;
 
     /// <summary>
-    /// Scheduling metadata (profile, allowed workers). Set by <see cref="Server"/> on create/load.
+    /// Scheduling metadata (allowed workers). Set by <see cref="Server"/> on create/load.
     /// </summary>
     public WorldRegistration Registration { get; internal set; } = null!;
 

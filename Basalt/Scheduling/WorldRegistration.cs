@@ -1,15 +1,12 @@
 namespace Basalt.Server.Scheduling;
 
 /// <summary>
-/// Scheduling metadata for a registered world (profile, allowed workers, limits).
+/// Scheduling metadata for a registered world (allowed workers, limits).
 /// </summary>
 public sealed class WorldRegistration
 {
     /// <summary>Same as <see cref="Basalt.Server.World.World.Name"/> / server world identifier.</summary>
     public required string Identifier { get; init; }
-
-    /// <summary>Expected simulation cost category.</summary>
-    public WorldProfile Profile { get; init; } = WorldProfile.Light;
 
     /// <summary>
     /// Worker indices (0 .. workerCount - 1) that may host this world.
