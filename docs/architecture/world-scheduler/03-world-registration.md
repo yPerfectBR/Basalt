@@ -1,6 +1,8 @@
 # 03 — World Registration
 
-Each world registered in the server carries **scheduling metadata** that controls which workers may host it and how the scheduler balances load.
+Each world registered in the server carries **scheduling metadata** that controls which workers may host it. When a world is attached (first player enters), the scheduler picks the **freest worker** among its `allowedWorkers`.
+
+There are **no world profiles** — assignment is defined per world via JSON or API.
 
 ## WorldRegistration
 
@@ -11,9 +13,6 @@ public sealed class WorldRegistration
 {
     /// <summary>Same as World.Name / server world identifier.</summary>
     public required string Identifier { get; init; }
-
-    /// <summary>Expected simulation cost category.</summary>
-    public WorldProfile Profile { get; init; } = WorldProfile.Light;
 
     /// <summary>
     /// Worker indices (0 .. world-thread-count - 1) that may host this world.
@@ -31,44 +30,15 @@ public sealed class WorldRegistration
 }
 ```
 
-## WorldProfile
-
-```csharp
-public enum WorldProfile
-{
-    /// <summary>Spawn hub, lobby — usually one world, moderate cost.</summary>
-    Hub,
-
-    /// <summary>Skyblock islands, simple survival — low cost per world, many instances.</summary>
-    Light,
-
-    /// <summary>Dungeons, complex minigames — high cost per world, few instances.</summary>
-    Heavy
-}
-```
-
-### Default profile → allowed workers
-
-Applied when `AllowedWorkers` is omitted in config. Server must validate indices against `world-thread-count`.
-
-| Profile | Default allowedWorkers | Typical use |
-|---------|------------------------|-------------|
-| `Hub` | `[0]` | Spawn, lobby |
-| `Light` | `[1, 2]` | Skyblock islands |
-| `Heavy` | `[2, 3]` | Dungeons, boss arenas |
-
-Defaults are **configurable** in `server.properties` (see [10-config-reference.md](./10-config-reference.md)).
-
 ---
 
 ## Registration sources
 
-Worlds can receive registration from (in priority order):
+Worlds receive registration from (in priority order):
 
 1. **Explicit API** — `Server.CreateWorld(name, provider, registration)`
-2. **Per-world JSON** — `worlds/{identifier}/world.json` or `worlds/{identifier}.json`
-3. **Profile shorthand** — `CreateWorld(name, provider, profile: WorldProfile.Light)`
-4. **Server defaults** — `default-world-profile=hub`, default allowed worker sets
+2. **Per-world JSON** — `{world-path}/world.json` or `worlds/{identifier}.json`
+3. **Server default** — `world-default-allowed-workers` in `server.properties` (empty = all workers)
 
 ### Per-world JSON example
 
@@ -77,7 +47,6 @@ File: `worlds/island_042/world.json`
 ```json
 {
   "identifier": "island_042",
-  "profile": "light",
   "allowedWorkers": [1, 2],
   "preferredWorker": null,
   "maxConcurrentPlayers": 4
@@ -89,12 +58,22 @@ File: `worlds/dungeon_event_alpha/world.json`
 ```json
 {
   "identifier": "dungeon_event_alpha",
-  "profile": "heavy",
   "allowedWorkers": [2, 3],
   "preferredWorker": 3,
   "maxConcurrentPlayers": 8
 }
 ```
+
+File: `worlds/world/world.json` (hub / spawn)
+
+```json
+{
+  "identifier": "world",
+  "allowedWorkers": [0]
+}
+```
+
+On attach, the scheduler evaluates load on workers `2` and `3` only and picks the one with the lowest score.
 
 ---
 
@@ -122,7 +101,7 @@ public WorldInstance CreateWorld(
     WorldRegistration? registration = null,
     params object[] providerArgs)
 {
-    registration ??= WorldRegistrationDefaults.ForProfile(WorldProfile.Light, name);
+    // registration ?? TryLoad from world.json ?? ForWorld from server.properties
     // validate AllowedWorkers against Properties.WorldThreadCount
     // ...
 }
@@ -137,7 +116,6 @@ On world create/load, the server MUST:
 1. Reject empty `AllowedWorkers`.
 2. Reject any index `< 0` or `>= world-thread-count`.
 3. Reject `PreferredWorker` not in `AllowedWorkers`.
-4. Log warning if `Heavy` world shares only `Light` workers (misconfiguration).
 
 ```csharp
 public static void Validate(WorldRegistration reg, int workerCount)
@@ -161,7 +139,7 @@ public static void Validate(WorldRegistration reg, int workerCount)
 
 ## Skyblock pattern
 
-Many island worlds, same profile:
+Many island worlds, each with its own `allowedWorkers`:
 
 ```csharp
 for (int i = 0; i < 500; i++)
@@ -170,12 +148,13 @@ for (int i = 0; i < 500; i++)
         new WorldRegistration
         {
             Identifier = $"island_{i:D3}",
-            Profile = WorldProfile.Light,
             AllowedWorkers = [1, 2]
         },
         Path.Combine("worlds", $"island_{i:D3}"));
 }
 ```
+
+Or place `world.json` beside each island's LevelDB data with `"allowedWorkers": [1, 2]`.
 
 - All 500 worlds exist in `Server._worlds` metadata.
 - Only islands with a player online are **attached** to worker 1 or 2.
@@ -185,32 +164,28 @@ for (int i = 0; i < 500; i++)
 
 ## Dungeon pattern
 
-Few instances, dedicated heavy workers:
+Few instances, dedicated workers via per-world JSON:
 
-```csharp
-server.CreateWorld("dungeon_01", "memory",
-    new WorldRegistration
-    {
-        Identifier = "dungeon_01",
-        Profile = WorldProfile.Heavy,
-        AllowedWorkers = [2, 3],
-        MaxConcurrentPlayers = 8
-    });
+```json
+{
+  "identifier": "dungeon_01",
+  "allowedWorkers": [2, 3],
+  "maxConcurrentPlayers": 8
+}
 ```
 
-When 4 dungeon instances are active on worker 3, new attaches to worker 2 if it has lower load (still within `[2, 3]`).
+When 4 dungeon instances are active on worker 3, new attaches go to worker 2 if it has lower load (still within `[2, 3]`).
 
 ---
 
 ## Dynamic world creation (plugins)
 
-Plugins creating worlds at runtime must supply registration:
+Plugins creating worlds at runtime must supply registration or a `world.json`:
 
 ```csharp
 server.CreateWorld("arena_temp", "memory", new WorldRegistration
 {
     Identifier = "arena_temp",
-    Profile = WorldProfile.Heavy,
     AllowedWorkers = [3]
 });
 ```

@@ -38,7 +38,7 @@ Basalt/Scheduling/
 ├── WorldWorkerPool.cs
 ├── WorldWorker.cs
 ├── WorldRegistration.cs
-├── WorldProfile.cs
+├── WorldRegistrationLoader.cs
 ├── WorkerLoadMetrics.cs
 ├── ActiveWorldHandle.cs
 ├── PacketIngress.cs
@@ -124,7 +124,7 @@ public int PickWorker(WorldRegistration reg)
     foreach (int workerId in reg.AllowedWorkers)
     {
         WorkerLoadMetrics m = _pool.GetWorker(workerId).Metrics;
-        double score = ComputeScore(m, reg.Profile);
+        double score = ComputeScore(m);
         if (score < bestScore)
         {
             bestScore = score;
@@ -138,17 +138,9 @@ public int PickWorker(WorldRegistration reg)
     return bestWorker;
 }
 
-private static double ComputeScore(WorkerLoadMetrics m, WorldProfile profile)
+private static double ComputeScore(WorkerLoadMetrics m)
 {
-    double profileWeight = profile switch
-    {
-        WorldProfile.Hub => 1.0,
-        WorldProfile.Light => 1.0,
-        WorldProfile.Heavy => 2.5,
-        _ => 1.0
-    };
-
-    return m.ActiveWorldCount * profileWeight
+    return m.ActiveWorldCount
          + m.TotalPresentPlayers * 0.5
          + m.LastTickWorkMs
          + m.TickLagMs * 2.0;
@@ -160,7 +152,7 @@ private static double ComputeScore(WorkerLoadMetrics m, WorldProfile profile)
 If two workers have equal score within epsilon (`0.01`):
 
 1. Prefer worker with **fewer** `ActiveWorldCount`.
-2. If still tied, **round-robin** among tied workers using `_lastAssignedWorker[profile]`.
+2. If still tied, prefer the worker listed **first** in `allowedWorkers` (stable default).
 
 ### Constraints
 

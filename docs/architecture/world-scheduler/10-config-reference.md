@@ -13,16 +13,9 @@ Add to [`Basalt/Properties.cs`](../../../Basalt/Properties.cs) with `ServerPrope
 | `world-thread-count` | int | `4` | 3 | Number of worker threads (indices `0` .. `count-1`) |
 | `world-scheduler-enabled` | bool | `false` | 3 | Enable multi-worker pool; `false` uses Phase 1 single-thread queue |
 | `world-scheduler-debug` | bool | `false` | 1 | Verbose scheduler/packet routing logs |
+| `world-default-allowed-workers` | int[] | *(empty)* | 3 | Fallback worker indices when a world has no `world.json`. Empty = all workers `0..count-1` |
 
-### Default allowed workers by profile
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `world-profile-hub-workers` | int[] | `0` | Comma-separated worker indices for `Hub` when not specified per world |
-| `world-profile-light-workers` | int[] | `1,2` | Default for `Light` profile |
-| `world-profile-heavy-workers` | int[] | `2,3` | Default for `Heavy` profile |
-
-Parser example: `"1,2"` → `[1, 2]`.
+Parser example: `"1,2"` → `[1, 2]`. Empty string → `[0, 1, …, count-1]`.
 
 ### Example server.properties
 
@@ -35,43 +28,41 @@ world-thread-count=6
 world-scheduler-enabled=false
 world-scheduler-debug=false
 
-world-profile-hub-workers=0
-world-profile-light-workers=1,2
-world-profile-heavy-workers=2,3,4,5
+# Fallback when world.json is missing (empty = all workers)
+world-default-allowed-workers=
 ```
 
 ---
 
 ## Worker index layout (recommended 6-thread setup)
 
-| Index | Profile | Role |
-|-------|---------|------|
-| `0` | Hub | Spawn, lobby |
-| `1`, `2` | Light | Skyblock islands (scheduler picks freest) |
-| `3`, `4`, `5` | Heavy | Dungeons, arenas |
+| Index | Suggested role | Example worlds |
+|-------|----------------|----------------|
+| `0` | Hub / spawn | `world` with `"allowedWorkers": [0]` |
+| `1`, `2` | Light simulation | Skyblock islands with `"allowedWorkers": [1, 2]` |
+| `3`, `4`, `5` | Heavy simulation | Dungeons with `"allowedWorkers": [3, 4, 5]` |
 
-This is convention only — actual mapping is defined by per-world `allowedWorkers`.
+This is **convention only** — actual mapping is defined per world in `world.json` or the create API.
 
 ---
 
 ## Per-world registration JSON
 
-### Path resolution (implement in Phase 3)
+### Path resolution
 
 Search order:
 
 1. `{world-path}/world.json` (alongside LevelDB data)
 2. `worlds/{identifier}.json`
-3. API argument to `CreateWorld`
-4. Profile defaults from server.properties
+3. API argument to `CreateWorld` / `LoadWorld`
+4. `world-default-allowed-workers` from server.properties
 
 ### Schema
 
 ```json
 {
   "$schema": "optional",
-  "identifier": "string (required)",
-  "profile": "hub | light | heavy (required)",
+  "identifier": "string (optional, must match world name if set)",
   "allowedWorkers": [1, 2],
   "preferredWorker": null,
   "maxConcurrentPlayers": 2147483647
@@ -80,10 +71,9 @@ Search order:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `identifier` | yes | Must match world name |
-| `profile` | yes | `hub`, `light`, or `heavy` (case-insensitive) |
+| `identifier` | no | Should match world name; used for validation warnings |
 | `allowedWorkers` | yes | Non-empty array of valid worker indices |
-| `preferredWorker` | no | Must be in `allowedWorkers` |
+| `preferredWorker` | no | Must be in `allowedWorkers`; skips load balancing |
 | `maxConcurrentPlayers` | no | Soft reject or queue when full (future) |
 
 ### Examples
@@ -93,7 +83,6 @@ Search order:
 ```json
 {
   "identifier": "island_042",
-  "profile": "light",
   "allowedWorkers": [1, 2]
 }
 ```
@@ -103,7 +92,6 @@ Search order:
 ```json
 {
   "identifier": "dungeon_boss_01",
-  "profile": "heavy",
   "allowedWorkers": [3, 4, 5],
   "preferredWorker": 4,
   "maxConcurrentPlayers": 8
@@ -115,7 +103,6 @@ Search order:
 ```json
 {
   "identifier": "world",
-  "profile": "hub",
   "allowedWorkers": [0]
 }
 ```
@@ -133,22 +120,15 @@ server.CreateWorld(
     registration: new WorldRegistration
     {
         Identifier = "island_042",
-        Profile = WorldProfile.Light,
         AllowedWorkers = [1, 2]
     },
     providerArgs: Path.Combine("worlds", "island_042"));
 ```
 
-### Shorthand (uses defaults from properties)
-
-```csharp
-server.CreateWorld("island_042", "leveldb", WorldProfile.Light);
-```
-
 ### Load from JSON
 
 ```csharp
-WorldRegistration reg = WorldRegistrationLoader.LoadFromFile(path);
+WorldRegistration reg = WorldRegistrationLoader.LoadFromFile(path, expectedIdentifier, workerCount);
 server.LoadWorld(reg.Identifier, "leveldb", reg, dataPath);
 ```
 
@@ -159,24 +139,13 @@ server.LoadWorld(reg.Identifier, "leveldb", reg, dataPath);
 ```csharp
 public static class WorldRegistrationDefaults
 {
-    public static WorldRegistration ForProfile(
-        WorldProfile profile,
-        string identifier,
-        Properties properties)
+    public static WorldRegistration ForWorld(string identifier, Properties properties)
     {
-        int[] workers = profile switch
-        {
-            WorldProfile.Hub => properties.HubWorkers,
-            WorldProfile.Light => properties.LightWorkers,
-            WorldProfile.Heavy => properties.HeavyWorkers,
-            _ => [0]
-        };
-
+        int[] workers = ParseWorkers(properties.DefaultAllowedWorkers, properties.WorldThreadCount);
         return new WorldRegistration
         {
             Identifier = identifier,
-            Profile = profile,
-            AllowedWorkers = workers
+            AllowedWorkers = ClampWorkers(workers, properties.WorldThreadCount)
         };
     }
 }

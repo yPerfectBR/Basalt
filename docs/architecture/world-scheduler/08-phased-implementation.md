@@ -13,7 +13,7 @@ Feature flag: `world-scheduler-enabled` (default `false` until Phase 3 stable).
 ### Deliverables
 
 - [ ] Create `Basalt/Scheduling/` folder with stub types
-- [ ] `WorldRegistration`, `WorldProfile`, `IWorldScheduler`
+- [ ] `WorldRegistration`, `WorldRegistrationLoader`, `IWorldScheduler`
 - [ ] `SingleThreadScheduler` — all methods noop or pass-through
 - [ ] Add optional `World.Registration` property (defaults for existing worlds)
 - [ ] Document-only validation helpers
@@ -22,11 +22,11 @@ Feature flag: `world-scheduler-enabled` (default `false` until Phase 3 stable).
 
 | File | Purpose |
 |------|---------|
-| `Basalt/Scheduling/WorldProfile.cs` | Enum Hub, Light, Heavy |
 | `Basalt/Scheduling/WorldRegistration.cs` | Registration model + Validate |
+| `Basalt/Scheduling/WorldRegistrationLoader.cs` | Load per-world JSON |
 | `Basalt/Scheduling/IWorldScheduler.cs` | Interface |
 | `Basalt/Scheduling/SingleThreadScheduler.cs` | Noop implementation |
-| `Basalt/Scheduling/WorldRegistrationDefaults.cs` | Default allowed workers per profile |
+| `Basalt/Scheduling/WorldRegistrationDefaults.cs` | Fallback from server.properties |
 
 ### Files to modify
 

@@ -78,7 +78,7 @@ Represents an **entity in a world**. Worker-local. Inherits `Entity`.
 
 Registered in `Server._worlds`. Holds:
 
-- `WorldRegistration` (profile, allowed workers)
+- `WorldRegistration` (allowed workers)
 - Provider, dimensions (when loaded)
 - `AttachedWorkerId` (null if not active)
 - `PresentPlayerCount` (maintained by session/scheduler)

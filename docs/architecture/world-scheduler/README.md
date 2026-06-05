@@ -1,6 +1,6 @@
 # World Scheduler — Architecture Documentation
 
-Central index for the Basalt **World Scheduler**: a fixed worker pool that runs world simulation on assigned threads, with per-world registration (profile + allowed workers), load-based assignment, and dynamic attach/detach when players enter or leave.
+Central index for the Basalt **World Scheduler**: a fixed worker pool that runs world simulation on assigned threads, with per-world registration (`allowedWorkers` in `world.json` or API), load-based assignment, and dynamic attach/detach when players enter or leave.
 
 ---
 
@@ -172,7 +172,7 @@ This design addresses:
 
 - Server-level player/session registry (plugin-friendly)
 - Entity bound to active world on a worker (transfer-friendly)
-- Skyblock: many worlds, only active ones on workers, Light profile on workers 1–2
-- Dungeons: Heavy profile on workers 2–5, fewer worlds, higher tick cost
+- Skyblock: many worlds, only active ones on workers, per-world `allowedWorkers: [1, 2]`
+- Dungeons: per-world `allowedWorkers: [2, 5]`, fewer worlds, higher tick cost
 
 See [00-overview.md](./00-overview.md) for non-goals (not per-world player list, not one thread per world).

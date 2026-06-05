@@ -67,8 +67,8 @@ Operational guide for AI agents (and human developers) implementing the World Sc
 
 ### Phase 0
 
-1. `Basalt/Scheduling/WorldProfile.cs`
-2. `Basalt/Scheduling/WorldRegistration.cs`
+1. `Basalt/Scheduling/WorldRegistration.cs`
+2. `Basalt/Scheduling/WorldRegistrationLoader.cs`
 3. `Basalt/Scheduling/IWorldScheduler.cs`
 4. `Basalt/Scheduling/SingleThreadScheduler.cs`
 5. `Basalt/World/World.cs` — properties only
