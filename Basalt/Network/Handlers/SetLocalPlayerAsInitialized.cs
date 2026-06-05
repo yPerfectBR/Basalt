@@ -2,6 +2,7 @@ namespace Basalt.Server.Network.Handlers;
 
 using Basalt.Server;
 using Basalt.Server.Entity.Traits;
+using Basalt.Server.Player;
 using Basalt.Server.Player.Traits;
 using Basalt.Protocol.Packets;
 using Basalt.RakNet;
@@ -51,9 +52,14 @@ public static class SetLocalPlayerAsInitialized
         }
 
         string joinMessage = $"§e{player.Username} joined the server.";
-        foreach (global::Basalt.Server.Player.Player target in server.Players.Values)
+        foreach (PlayerSession targetSession in server.Sessions.Values)
         {
-            // target.SendMessage(joinMessage);
+            if (ReferenceEquals(targetSession.ActiveEntity, player))
+            {
+                continue;
+            }
+
+            targetSession.SendMessage(joinMessage);
         }
 
         Logger.Info($"Player {player.Username} has spawned.");

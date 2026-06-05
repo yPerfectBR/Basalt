@@ -33,7 +33,17 @@ public sealed class PacketIngressTests
         PacketIngress ingress = new(server);
         TestNetworkConnection connection = new();
         Player player = new("Steve", "12345", Guid.NewGuid());
-        server.Players[connection] = player;
+        PlayerSession session = new()
+        {
+            Connection = connection,
+            Network = server.Network,
+            Username = "Steve",
+            Xuid = "12345",
+            Uuid = player.Uuid,
+            ActiveEntity = player
+        };
+        player.Session = session;
+        server.Sessions[connection] = session;
 
         ingress.Route(connection, PacketId.PlayerAuthInput, []);
 
@@ -46,7 +56,18 @@ public sealed class PacketIngressTests
         Server server = TestServerFactory.CreateMemoryServer();
         SingleThreadScheduler scheduler = Assert.IsType<SingleThreadScheduler>(server.Scheduler);
         TestNetworkConnection connection = new();
-        server.Players[connection] = new Player("Steve", "12345", Guid.NewGuid());
+        Player player = new("Steve", "12345", Guid.NewGuid());
+        PlayerSession session = new()
+        {
+            Connection = connection,
+            Network = server.Network,
+            Username = "Steve",
+            Xuid = "12345",
+            Uuid = player.Uuid,
+            ActiveEntity = player
+        };
+        player.Session = session;
+        server.Sessions[connection] = session;
 
         Thread drainThread = new(() => scheduler.DrainMainQueue())
         {

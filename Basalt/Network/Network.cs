@@ -36,8 +36,6 @@ public sealed class NetworkHandler
             return;
         }
 
-        _server.Players.Remove(connection);
-
         if (session.ActiveEntity is not global::Basalt.Server.Player.Player player)
         {
             return;

@@ -19,10 +19,8 @@ public sealed class Player : Entity.Entity
     public readonly string Username;
     public readonly string Xuid;
     public readonly Guid Uuid;
-    public DeviceOS DeviceOS;
-    private byte[]? Skin;
-    internal NetworkConnection? Connection;
-    internal NetworkHandler? Network;
+    private DeviceOS _deviceOS;
+    private byte[]? _skin;
     public PlayerAbilities Abilities { get; } = new();
     public HashSet<string> Permissions { get; } = new(StringComparer.OrdinalIgnoreCase);
     public Gamemode Gamemode { get; private set; } = Gamemode.Survival;
@@ -41,6 +39,22 @@ public sealed class Player : Entity.Entity
     public PlayerSession? Session { get; internal set; }
 
     public bool IsOnline => Session is not null;
+
+    internal NetworkConnection? Connection => Session?.Connection;
+    internal NetworkHandler? Network => Session?.Network;
+
+    public DeviceOS DeviceOS
+    {
+        get => Session?.DeviceOS ?? _deviceOS;
+        set
+        {
+            _deviceOS = value;
+            if (Session is not null)
+            {
+                Session.DeviceOS = value;
+            }
+        }
+    }
 
     public Player(string username, string xuid, Guid uuid) :
         base(EntityIdentifier.Player.ToIdentifierString())
@@ -76,17 +90,10 @@ public sealed class Player : Entity.Entity
 
         Dimension?.Broadcast(gamemodePacket, new BroadcastOptions { Except = [this] });
 
-        if (Dimension?.World?.Server is Server server)
+        if (Session is not null)
         {
-            foreach ((NetworkConnection connection, Player player) in server.Players)
-            {
-                if (ReferenceEquals(player, this))
-                {
-                    server.Network.SendPacket(connection, new SetPlayerGameTypePacket { GameType = gamemode });
-                    server.Network.SendPacket(connection, abilitiesPacket);
-                    break;
-                }
-            }
+            Session.Send(new SetPlayerGameTypePacket { GameType = gamemode });
+            Session.Send(abilitiesPacket);
         }
     }
 
@@ -139,12 +146,12 @@ public sealed class Player : Entity.Entity
 
     public void SyncPermissions()
     {
-        if (Connection is null || Network is null)
+        if (Session is null)
         {
             return;
         }
 
-        Network.SendPacket(Connection, CreateAbilitiesPacket());
+        Session.Send(CreateAbilitiesPacket());
 
         if (Dimension?.World?.Server is global::Basalt.Server.Server server)
         {
@@ -202,12 +209,7 @@ public sealed class Player : Entity.Entity
 
     public void Send(params DataPacket[] packets)
     {
-        if (Connection is null || Network is null || packets.Length == 0)
-        {
-            return;
-        }
-
-        Network.SendPackets(Connection, packets);
+        Session?.Send(packets);
     }
 
     public bool DropItem(Item.ItemStack item)
@@ -303,21 +305,7 @@ public sealed class Player : Entity.Entity
 
     public void Disconnect(string reason = "")
     {
-        if (Connection is null || Network is null)
-        {
-            return;
-        }
-
-        DisconnectPacket disconnect = new()
-        {
-            Reason = string.IsNullOrEmpty(reason) ? DisconnectReason.Disconnected : DisconnectReason.NetherNetSignalingSigninFailed,
-            HideDisconnectionScreen = string.IsNullOrEmpty(reason),
-            Message = reason,
-            FilteredMessage = string.Empty
-        };
-
-        Network.SendPacket(Connection, disconnect, immediate: true);
-        Connection.Disconnect();
+        Session?.Disconnect(reason);
     }
 
     public void SetSpawned(bool spawned)
@@ -453,7 +441,7 @@ public sealed class Player : Entity.Entity
 
     public void SendAttributes()
     {
-        if (Network == null || Connection == null)
+        if (Session is null)
         {
             return;
         }
@@ -469,7 +457,7 @@ public sealed class Player : Entity.Entity
 
         if (attributes.Attributes.Count > 0)
         {
-            Network.SendPacket(Connection, attributes);
+            Session.Send(attributes);
         }
 
         AttributesDirty = false;
@@ -477,11 +465,11 @@ public sealed class Player : Entity.Entity
 
     public PlayerListEntry CreatePlayerListEntry()
     {
-        global::Basalt.Protocol.Types.Skin skin = new();
-        if (Skin is not null && Skin.Length > 0)
+        global::Basalt.Protocol.Types.Skin skin = Session?.Skin ?? new();
+        if (Session is null && _skin is not null && _skin.Length > 0)
         {
             int offset = 0;
-            Binary.BinaryReader reader = new(Skin, ref offset);
+            Binary.BinaryReader reader = new(_skin, ref offset);
             skin.Read(reader);
         }
 
@@ -503,10 +491,16 @@ public sealed class Player : Entity.Entity
 
     public void SetSkin(global::Basalt.Protocol.Types.Skin skin)
     {
+        if (Session is not null)
+        {
+            Session.Skin = skin;
+            return;
+        }
+
         using BinaryStream stream = BinaryStream.Rent(2 * 1024 * 1024);
         Binary.BinaryWriter writer = stream;
         skin.Write(writer);
-        Skin = writer.GetProcessedBytes().ToArray();
+        _skin = writer.GetProcessedBytes().ToArray();
     }
 
     public override void SpawnTo(Player player, ulong tick)
@@ -551,23 +545,7 @@ public sealed class Player : Entity.Entity
         string message
     )
     {
-        var packet = new TextPacket()
-        {
-            VariantType = TextVariantType.MessageOnly,
-            FilteredMessage = null,
-            NeedsTranslation = false,
-            Xuid = "",
-            PlatformChatId = "",
-            Variant = new TextVariant()
-            {
-                Message = message,
-                Parameters = new List<string>(),
-                Source = "",
-                Type = TextType.Raw,
-            }
-        };
-
-        Send(packet);
+        Session?.SendMessage(message);
     }
 
 }

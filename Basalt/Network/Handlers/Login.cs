@@ -151,11 +151,7 @@ public static class Login
         };
         session.SetOperator(isOperator);
         player.Session = session;
-        player.Connection = connection;
-        player.Network = server.Network;
-        player.DeviceOS = clientData.DeviceOs;
         server.Sessions[connection] = session;
-        server.Players[connection] = player;
 
         PlayStatusPacket status = new(PlayStatus.LoginSuccess);
 

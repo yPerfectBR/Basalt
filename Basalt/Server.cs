@@ -64,7 +64,8 @@ public sealed class Server
     /// <summary>
     /// Registry for players (legacy; use <see cref="Sessions"/>).
     /// </summary>
-    public readonly Dictionary<NetworkConnection, PlayerInstance> Players = new();
+    [Obsolete("Use Sessions and session.ActiveEntity")]
+    public IReadOnlyDictionary<NetworkConnection, PlayerInstance> Players { get; }
 
     /// <summary>
     /// Central registry of connected player sessions.
@@ -100,6 +101,7 @@ public sealed class Server
         Network = new NetworkHandler(this);
         Plugins = new PluginManager(this);
         _scheduler = new SingleThreadScheduler(this);
+        Players = new LegacyPlayersAdapter(this);
 
         RegisterProvider<LevelDbProvider>("leveldb");
         RegisterProvider<InMemoryProvider>("memory");
@@ -250,11 +252,11 @@ public sealed class Server
             return;
         }
 
-        foreach (PlayerInstance player in Players.Values.ToArray())
+        foreach (PlayerSession session in Sessions.Values.ToArray())
         {
             try
             {
-                player.Disconnect("Server closed.");
+                session.Disconnect("Server closed.");
             }
             catch (Exception exception)
             {
