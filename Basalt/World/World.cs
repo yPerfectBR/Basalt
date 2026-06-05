@@ -1,6 +1,7 @@
 namespace Basalt.Server.World;
 
 using Basalt.Protocol.Enums;
+using Basalt.Server.Scheduling;
 using Basalt.Server.World.Dimension.Generation;
 using Basalt.Server.World.Dimension.Provider;
 using DimensionInstance = Basalt.Server.World.Dimension.Dimension;
@@ -44,6 +45,26 @@ public sealed class World : IDisposable, Tickable
     /// An enumerable of all dimensions in the world.
     /// </summary>
     public IEnumerable<DimensionInstance> Dimensions => _dimensions.Values;
+
+    /// <summary>
+    /// Scheduling metadata (profile, allowed workers). Set by <see cref="Server"/> on create/load.
+    /// </summary>
+    public WorldRegistration Registration { get; internal set; } = null!;
+
+    /// <summary>
+    /// Worker index when attached; null when dormant (no players present).
+    /// </summary>
+    public int? AttachedWorkerId { get; internal set; }
+
+    /// <summary>
+    /// Players currently present in this world instance.
+    /// </summary>
+    public int PresentPlayerCount { get; internal set; }
+
+    /// <summary>
+    /// Whether this world is attached to a worker and receiving ticks.
+    /// </summary>
+    public bool IsAttached => AttachedWorkerId.HasValue;
 
     /// <summary>
     /// Creates a new world.

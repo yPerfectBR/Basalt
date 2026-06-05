@@ -8,6 +8,7 @@ using Basalt.Protocol.Enums;
 using Basalt.Protocol.Packets;
 using Basalt.RakNet;
 using Basalt.Server.Events;
+using Basalt.Server.Scheduling;
 using Basalt.Server.World;
 using Basalt.Server.World.Dimension.Generation;
 using Basalt.Server.World.Dimension.Provider;
@@ -37,6 +38,7 @@ public sealed class Server
     /// </summary>
     private readonly Dictionary<string, Type> _providerRegistry = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, WorldInstance> _worlds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IWorldScheduler _scheduler;
     /// <summary>
     /// Cancellation source for the main network loop
     /// </summary>
@@ -70,6 +72,10 @@ public sealed class Server
     /// </summary>
     public NetworkHandler Network { get; }
     public Properties Properties { get; }
+    /// <summary>
+    /// World simulation scheduler (worker pool in Phase 3+).
+    /// </summary>
+    public IWorldScheduler Scheduler => _scheduler;
     public IEnumerable<WorldInstance> Worlds => _worlds.Values;
 
     public string DefaultWorldIdentifier { get; }
@@ -85,6 +91,7 @@ public sealed class Server
         _raknet = new NetworkServer(new RaknetServerOptions(MaxMtu: Properties.Mtu, Port: Properties.Port));
         Network = new NetworkHandler(this);
         Plugins = new PluginManager(this);
+        _scheduler = new SingleThreadScheduler(this);
 
         RegisterProvider<LevelDbProvider>("leveldb");
         RegisterProvider<InMemoryProvider>("memory");
@@ -115,6 +122,7 @@ public sealed class Server
 
     public void Start()
     {
+        _scheduler.Start();
         Plugins.StartAll();
         Commands.CacheAvailableCommands(this);
         _lastTpsTimestamp = Stopwatch.GetTimestamp();
@@ -217,6 +225,7 @@ public sealed class Server
 
     public void Stop()
     {
+        _scheduler.Stop();
         Plugins.DisableAll();
         CancellationTokenSource? runCancellation = _runCancellation;
         Task? networkLoopTask = _networkLoopTask;
@@ -260,10 +269,20 @@ public sealed class Server
             runCancellation?.Dispose();
             cancellation?.Dispose();
         }
+
         Logger.Info("Basalt successfully stopped.");
     }
 
     public WorldInstance CreateWorld(string name, string providerIdentifier, params object[] providerArgs)
+    {
+        return CreateWorld(name, providerIdentifier, registration: null, providerArgs);
+    }
+
+    public WorldInstance CreateWorld(
+        string name,
+        string providerIdentifier,
+        WorldRegistration? registration,
+        params object[] providerArgs)
     {
         if (_worlds.ContainsKey(name))
         {
@@ -293,11 +312,21 @@ public sealed class Server
 
         WorldInstance world = new(name, provider);
         world.Server = this;
+        ApplyWorldRegistration(world, registration);
         _worlds[name] = world;
         return world;
     }
 
     public WorldInstance? LoadWorld(string name, string providerIdentifier, params object[] providerArgs)
+    {
+        return LoadWorld(name, providerIdentifier, registration: null, providerArgs);
+    }
+
+    public WorldInstance? LoadWorld(
+        string name,
+        string providerIdentifier,
+        WorldRegistration? registration,
+        params object[] providerArgs)
     {
         if (string.IsNullOrWhiteSpace(providerIdentifier))
         {
@@ -336,6 +365,7 @@ public sealed class Server
 
         WorldInstance world = new(name, provider);
         world.Server = this;
+        ApplyWorldRegistration(world, registration);
         _worlds[name] = world;
         return world;
     }
@@ -444,6 +474,18 @@ public sealed class Server
     private static double GRTM(long deadlineTimestamp, long timestamp)
     {
         return (deadlineTimestamp - timestamp) * 1000.0 / Stopwatch.Frequency;
+    }
+
+    void ApplyWorldRegistration(WorldInstance world, WorldRegistration? registration)
+    {
+        WorldProfile profile = world.Name.Equals(DefaultWorldIdentifier, StringComparison.OrdinalIgnoreCase)
+            ? WorldProfile.Hub
+            : WorldProfile.Light;
+
+        world.Registration = registration
+            ?? WorldRegistrationDefaults.ForProfile(profile, world.Name);
+
+        WorldRegistration.Validate(world.Registration, WorldRegistrationDefaults.DefaultWorkerCount);
     }
 
     public void Broadcast(DataPacket packet, params PlayerInstance[]? exclude)
