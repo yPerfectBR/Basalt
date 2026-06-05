@@ -14,7 +14,7 @@ public static class PlayerAction
         Binary.BinaryReader reader = new(packetBuffer, ref offset);
         packet = (PlayerActionPacket)Protocol.Io.Packet.Deserialize(reader);
 
-        if (!server.Players.TryGetValue(connection, out global::Basalt.Server.Player.Player? player))
+        if (!SessionLookup.TryGetPlayer(server, connection, out global::Basalt.Server.Player.Player? player))
         {
             return;
         }

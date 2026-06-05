@@ -27,7 +27,7 @@ public static class RequestChunkRadius
         /// PLEASE KEEP IT COMMENTED OUT!
         // server.Network.SendPacket(connection, response);
 
-        if (!server.Players.TryGetValue(connection, out global::Basalt.Server.Player.Player? player))
+        if (!SessionLookup.TryGetPlayer(server, connection, out global::Basalt.Server.Player.Player? player))
         {
             return;
         }

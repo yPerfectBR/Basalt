@@ -5,6 +5,7 @@ using Basalt.Binary;
 using Basalt.Server.Events;
 using Basalt.Server.Network.Handlers;
 using Basalt.Server.Scheduling;
+using Basalt.Server.Player;
 using Basalt.Protocol.Enums;
 using Basalt.Protocol.Packets;
 using Basalt.RakNet;
@@ -30,7 +31,14 @@ public sealed class NetworkHandler
 
     internal void ProcessDisconnectOnWorker(NetworkConnection connection)
     {
-        if (!_server.Players.Remove(connection, out global::Basalt.Server.Player.Player? player))
+        if (!_server.Sessions.TryRemove(connection, out PlayerSession? session))
+        {
+            return;
+        }
+
+        _server.Players.Remove(connection);
+
+        if (session.ActiveEntity is not global::Basalt.Server.Player.Player player)
         {
             return;
         }
@@ -46,15 +54,17 @@ public sealed class NetworkHandler
         }
 
         string leaveMessage = $"§e{player.Username} left the server.";
-        foreach (global::Basalt.Server.Player.Player target in _server.Players.Values)
+        foreach (PlayerSession targetSession in _server.Sessions.Values)
         {
-            target.SendMessage(leaveMessage);
+            targetSession.SendMessage(leaveMessage);
         }
 
         if (player.IsAlive && player.Dimension is not null)
         {
             player.Despawn(options);
         }
+
+        session.ActiveEntity = null;
 
         PlayerListPacket removePlayer = new()
         {

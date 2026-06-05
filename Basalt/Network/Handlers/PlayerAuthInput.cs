@@ -44,7 +44,7 @@ public static class PlayerAuthInput
 
         try
         {
-            if (!server.Players.TryGetValue(connection, out global::Basalt.Server.Player.Player? player))
+            if (!SessionLookup.TryGetPlayer(server, connection, out global::Basalt.Server.Player.Player? player))
             {
                 return;
             }

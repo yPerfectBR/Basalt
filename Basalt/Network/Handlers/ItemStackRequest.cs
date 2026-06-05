@@ -21,7 +21,7 @@ public static class ItemStackRequest
         Binary.BinaryReader reader = new(packetBuffer, ref offset);
         packet = (ItemStackRequestPacket)Protocol.Io.Packet.Deserialize(reader);
 
-        if (!server.Players.TryGetValue(connection, out global::Basalt.Server.Player.Player? player) || packet.Requests.Count == 0)
+        if (!SessionLookup.TryGetPlayer(server, connection, out global::Basalt.Server.Player.Player? player) || packet.Requests.Count == 0)
         {
             return;
         }

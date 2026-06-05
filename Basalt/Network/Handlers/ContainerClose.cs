@@ -16,7 +16,7 @@ public static class ContainerClose
         Binary.BinaryReader reader = new(packetBuffer, ref offset);
         packet = (ContainerClosePacket)Protocol.Io.Packet.Deserialize(reader);
 
-        if (server.Players.TryGetValue(connection, out global::Basalt.Server.Player.Player? player))
+        if (SessionLookup.TryGetPlayer(server, connection, out global::Basalt.Server.Player.Player? player))
         {
             ArgumentNullException.ThrowIfNull(player);
 

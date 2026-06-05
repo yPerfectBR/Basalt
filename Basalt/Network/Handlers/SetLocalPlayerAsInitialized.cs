@@ -19,7 +19,7 @@ public static class SetLocalPlayerAsInitialized
         Binary.BinaryReader reader = new(packetBuffer, ref offset);
         packet = (SetLocalPlayerAsInitializedPacket)Protocol.Io.Packet.Deserialize(reader);
 
-        if (!server.Players.TryGetValue(connection, out global::Basalt.Server.Player.Player? player))
+        if (!SessionLookup.TryGetPlayer(server, connection, out global::Basalt.Server.Player.Player? player))
         {
             Logger.Warn("SetLocalPlayerAsInitialized received for unknown player session.");
             return;

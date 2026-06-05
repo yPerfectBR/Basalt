@@ -73,19 +73,19 @@ public static class Login
 
         ClientData clientData = LoginPayload.Parse(packet.Client);
 
-        KeyValuePair<NetworkConnection, global::Basalt.Server.Player.Player>? existingPlayerSession = null;
-        foreach ((NetworkConnection existingConnection, global::Basalt.Server.Player.Player existingPlayer) in server.Players)
+        KeyValuePair<NetworkConnection, PlayerSession>? existingPlayerSession = null;
+        foreach ((NetworkConnection existingConnection, PlayerSession existingSession) in server.Sessions)
         {
             bool sameXuid = !string.IsNullOrWhiteSpace(identity.Xuid) &&
-                string.Equals(existingPlayer.Xuid, identity.Xuid, StringComparison.Ordinal);
-            bool sameUsername = string.Equals(existingPlayer.Username, identity.Username, StringComparison.OrdinalIgnoreCase);
+                string.Equals(existingSession.Xuid, identity.Xuid, StringComparison.Ordinal);
+            bool sameUsername = string.Equals(existingSession.Username, identity.Username, StringComparison.OrdinalIgnoreCase);
 
             if (!sameXuid && !sameUsername)
             {
                 continue;
             }
 
-            existingPlayerSession = new KeyValuePair<NetworkConnection, global::Basalt.Server.Player.Player>(existingConnection, existingPlayer);
+            existingPlayerSession = new KeyValuePair<NetworkConnection, PlayerSession>(existingConnection, existingSession);
             break;
         }
 
