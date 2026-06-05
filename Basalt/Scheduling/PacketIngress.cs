@@ -33,11 +33,6 @@ public sealed class PacketIngress
             return;
         }
 
-        if (_server.Properties.WorldSchedulerDebug)
-        {
-            Logger.Debug("[PacketIngress] enqueue packet={0}", packetId);
-        }
-
         _server.Scheduler.EnqueueGamePacket(connection, packetId, payload);
     }
 
