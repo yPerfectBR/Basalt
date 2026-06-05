@@ -8,19 +8,27 @@ public class ListCommand : Command
 
     public override CommandResult Execute(CommandExecutionState state)
     {
-        var playerCount = state.Server.Players.Count();
+        List<Player.Player> onlinePlayers = state.Server.Sessions.Values
+            .Select(static session => session.ActiveEntity)
+            .OfType<Player.Player>()
+            .ToList();
 
+        var playerCount = onlinePlayers.Count;
 
         var message = $"§r§7There are (§a{playerCount}§7) Players Online.";
         if (playerCount > 0) message += "\n";
 
-        foreach (Player.Player player in state.Server.Players.Values)
+        for (int i = 0; i < onlinePlayers.Count; i++)
         {
-            var isLast = player == state.Server.Players.Values.Last();
-            if (!isLast)
+            Player.Player player = onlinePlayers[i];
+            if (i < onlinePlayers.Count - 1)
+            {
                 message += $"§a{player.Username}, \n";
+            }
             else
+            {
                 message += $"§a{player.Username}";
+            }
         }
 
         return CommandResult.Message(message, true);

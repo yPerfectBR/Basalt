@@ -157,9 +157,12 @@ public sealed class ItemEntity : Entity
 
         const float pickupRadiusSquared = 1.5f * 1.5f;
 
-        foreach ((_, var player) in server.Players)
+        foreach (global::Basalt.Server.Player.PlayerSession session in server.Sessions.Values)
         {
-            if (player.Dimension != Dimension || !player.IsAlive || !player.Spawned)
+            if (session.ActiveEntity is not global::Basalt.Server.Player.Player player
+                || player.Dimension != Dimension
+                || !player.IsAlive
+                || !player.Spawned)
             {
                 continue;
             }

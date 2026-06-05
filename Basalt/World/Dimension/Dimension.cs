@@ -415,9 +415,9 @@ public sealed class Dimension : IDisposable
         if (World?.Server is global::Basalt.Server.Server server)
         {
             int simulationDistance = Math.Clamp(server.Properties.SimulationDistance, 0, 120);
-            foreach ((_, var player) in server.Players)
+            foreach (global::Basalt.Server.Player.PlayerSession session in server.Sessions.Values)
             {
-                if (player.Dimension != this)
+                if (session.ActiveEntity is not global::Basalt.Server.Player.Player player || player.Dimension != this)
                 {
                     continue;
                 }
@@ -479,9 +479,9 @@ public sealed class Dimension : IDisposable
         resolved.Center ??= GetPacketPosition(packet);
         float radiusSquared = resolved.Radius * resolved.Radius;
 
-        foreach ((var connection, var player) in server.Players)
+        foreach (global::Basalt.Server.Player.PlayerSession session in server.Sessions.Values)
         {
-            if (player.Dimension != this)
+            if (session.ActiveEntity is not global::Basalt.Server.Player.Player player || player.Dimension != this)
             {
                 continue;
             }
@@ -505,7 +505,7 @@ public sealed class Dimension : IDisposable
                 }
             }
 
-            server.Network.SendPacket(connection, packet);
+            session.Send(packet);
         }
     }
 

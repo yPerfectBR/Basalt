@@ -506,8 +506,13 @@ public sealed class Server
 
     public void Broadcast(DataPacket packet, params PlayerInstance[]? exclude)
     {
-        foreach ((NetworkConnection connection, PlayerInstance player) in Players)
+        foreach (PlayerSession session in Sessions.Values)
         {
+            if (session.ActiveEntity is not PlayerInstance player)
+            {
+                continue;
+            }
+
             if (exclude is not null)
             {
                 bool skipped = false;
@@ -526,7 +531,7 @@ public sealed class Server
                 }
             }
 
-            Network.SendPacket(connection, packet);
+            session.Send(packet);
         }
     }
 }

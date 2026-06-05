@@ -43,7 +43,10 @@ public class TargetEnum : CommandEnum
 
         if (token == "@a")
         {
-            return server.Players.Values.ToArray<EntityInstance>();
+            return server.Sessions.Values
+                .Select(static session => session.ActiveEntity)
+                .OfType<EntityInstance>()
+                .ToArray();
         }
 
         if (token == "@e")
@@ -60,8 +63,13 @@ public class TargetEnum : CommandEnum
         {
             Player? nearest = null;
             float nearestDistance = float.MaxValue;
-            foreach (Player candidate in server.Players.Values)
+            foreach (global::Basalt.Server.Player.PlayerSession session in server.Sessions.Values)
             {
+                if (session.ActiveEntity is not Player candidate)
+                {
+                    continue;
+                }
+
                 if (player is not null && candidate.Dimension != player.Dimension)
                 {
                     continue;
@@ -83,8 +91,13 @@ public class TargetEnum : CommandEnum
             return nearest is null ? [] : [nearest];
         }
 
-        foreach (Player candidate in server.Players.Values)
+        foreach (global::Basalt.Server.Player.PlayerSession session in server.Sessions.Values)
         {
+            if (session.ActiveEntity is not Player candidate)
+            {
+                continue;
+            }
+
             if (string.Equals(candidate.Username, token, StringComparison.OrdinalIgnoreCase))
             {
                 return [candidate];

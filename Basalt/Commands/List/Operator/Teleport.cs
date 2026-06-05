@@ -2,6 +2,7 @@ namespace Basalt.Server.Commands.List.Operator;
 
 using Basalt.Protocol.Enums;
 using Basalt.Server.Commands;
+using Basalt.Server.Scheduling;
 using Vec3f = Basalt.Protocol.Types.Vec3f;
 using Basalt.Server.World.Dimension;
 using Player = global::Basalt.Server.Player.Player;
@@ -277,7 +278,20 @@ public class TpCommand : Command
             Player player = players[i];
             try
             {
+                WorldInstance? previousWorld = player.Dimension?.World;
                 player.Teleport(position, dimension);
+                WorldInstance? newWorld = player.Dimension?.World;
+
+                if (previousWorld is not null && !ReferenceEquals(previousWorld, newWorld))
+                {
+                    WorldPlayerPresence.OnPlayerLeftWorld(state.Server, previousWorld);
+                }
+
+                if (newWorld is not null && !ReferenceEquals(newWorld, previousWorld))
+                {
+                    WorldPlayerPresence.OnPlayerEnteredWorld(state.Server, newWorld);
+                }
+
                 successCount++;
 
                 if (ReferenceEquals(executor, player))
