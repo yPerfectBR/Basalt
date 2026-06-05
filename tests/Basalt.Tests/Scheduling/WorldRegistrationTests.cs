@@ -33,15 +33,56 @@ public sealed class WorldRegistrationTests
     }
 
     [Fact]
-    public void WorldRegistrationDefaults_Light_ReturnsExpectedWorkers()
+    public void WorldRegistrationDefaults_ForWorld_UsesAllWorkersWhenUnset()
     {
-        WorldRegistration registration = WorldRegistrationDefaults.ForProfile(
-            WorldProfile.Light,
+        WorldRegistration registration = WorldRegistrationDefaults.ForWorld(
             identifier: "island",
-            workerCount: 4);
+            properties: new Basalt.Server.Properties { WorldThreadCount = 4 });
 
-        Assert.Equal(WorldProfile.Light, registration.Profile);
         Assert.Equal("island", registration.Identifier);
-        Assert.Equal([1, 2], registration.AllowedWorkers);
+        Assert.Equal([0, 1, 2, 3], registration.AllowedWorkers);
+    }
+
+    [Fact]
+    public void WorldRegistrationDefaults_ForWorld_ParsesConfiguredWorkers()
+    {
+        WorldRegistration registration = WorldRegistrationDefaults.ForWorld(
+            identifier: "hub",
+            properties: new Basalt.Server.Properties
+            {
+                WorldThreadCount = 4,
+                DefaultAllowedWorkers = "0"
+            });
+
+        Assert.Equal([0], registration.AllowedWorkers);
+    }
+
+    [Fact]
+    public void WorldRegistrationLoader_LoadsFromWorldJson()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "basalt-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            string jsonPath = Path.Combine(tempDir, "world.json");
+            File.WriteAllText(jsonPath, """
+                {
+                  "identifier": "island_042",
+                  "allowedWorkers": [1, 2],
+                  "maxConcurrentPlayers": 4
+                }
+                """);
+
+            WorldRegistration registration = WorldRegistrationLoader.LoadFromFile(jsonPath, "island_042", workerCount: 4);
+
+            Assert.Equal("island_042", registration.Identifier);
+            Assert.Equal([1, 2], registration.AllowedWorkers);
+            Assert.Equal(4, registration.MaxConcurrentPlayers);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
     }
 }

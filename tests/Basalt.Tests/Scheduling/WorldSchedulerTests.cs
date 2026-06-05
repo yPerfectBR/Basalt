@@ -36,7 +36,6 @@ public sealed class WorldSchedulerTests
         WorldRegistration registration = new()
         {
             Identifier = "dungeon",
-            Profile = WorldProfile.Heavy,
             AllowedWorkers = [2, 3]
         };
 
@@ -72,7 +71,6 @@ public sealed class WorldSchedulerTests
         WorldRegistration registration = new()
         {
             Identifier = "island",
-            Profile = WorldProfile.Light,
             AllowedWorkers = [1, 2]
         };
 
@@ -91,7 +89,6 @@ public sealed class WorldSchedulerTests
         WorldRegistration registration = new()
         {
             Identifier = "preferred",
-            Profile = WorldProfile.Heavy,
             AllowedWorkers = [1, 2],
             PreferredWorker = 2
         };
@@ -125,7 +122,6 @@ public sealed class WorldSchedulerTests
         WorldRegistration registration = new()
         {
             Identifier = "tie",
-            Profile = WorldProfile.Light,
             AllowedWorkers = [1, 2]
         };
 
