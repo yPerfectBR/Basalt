@@ -116,7 +116,7 @@ public sealed class WorldScheduler : IWorldScheduler
         foreach (int workerId in registration.AllowedWorkers)
         {
             WorkerLoadMetrics metrics = _pool.GetWorker(workerId).Metrics;
-            double score = ComputeScore(metrics, registration.Profile);
+            double score = ComputeScore(metrics);
             if (score + ScoreEpsilon < bestScore
                 || (Math.Abs(score - bestScore) <= ScoreEpsilon && metrics.ActiveWorldCount < bestWorldCount))
             {
@@ -129,17 +129,9 @@ public sealed class WorldScheduler : IWorldScheduler
         return bestWorker;
     }
 
-    internal static double ComputeScore(WorkerLoadMetrics metrics, WorldProfile profile)
+    internal static double ComputeScore(WorkerLoadMetrics metrics)
     {
-        double profileWeight = profile switch
-        {
-            WorldProfile.Hub => 1.0,
-            WorldProfile.Light => 1.0,
-            WorldProfile.Heavy => 2.5,
-            _ => 1.0
-        };
-
-        return metrics.ActiveWorldCount * profileWeight
+        return metrics.ActiveWorldCount
             + metrics.TotalPresentPlayers * 0.5
             + metrics.LastTickWorkMs
             + metrics.TickLagMs * 2.0;
