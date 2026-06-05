@@ -66,6 +66,31 @@ public class Properties
     [ServerProperties.PropertyKey("world-scheduler-debug")]
     [ServerProperties.PropertyComment("Verbose scheduler and packet routing logs.")]
     public bool WorldSchedulerDebug { get; set; } = false;
+
+    [ServerProperties.PropertyOrder(14)]
+    [ServerProperties.PropertyKey("world-thread-count")]
+    [ServerProperties.PropertyComment("Number of world simulation worker threads.")]
+    public int WorldThreadCount { get; set; } = 4;
+
+    [ServerProperties.PropertyOrder(15)]
+    [ServerProperties.PropertyKey("world-scheduler-enabled")]
+    [ServerProperties.PropertyComment("Enable multi-worker world scheduler.")]
+    public bool WorldSchedulerEnabled { get; set; } = false;
+
+    [ServerProperties.PropertyOrder(16)]
+    [ServerProperties.PropertyKey("world-profile-hub-workers")]
+    [ServerProperties.PropertyComment("Comma-separated worker indices for Hub worlds.")]
+    public string HubWorkers { get; set; } = "0";
+
+    [ServerProperties.PropertyOrder(17)]
+    [ServerProperties.PropertyKey("world-profile-light-workers")]
+    [ServerProperties.PropertyComment("Comma-separated worker indices for Light worlds.")]
+    public string LightWorkers { get; set; } = "1,2";
+
+    [ServerProperties.PropertyOrder(18)]
+    [ServerProperties.PropertyKey("world-profile-heavy-workers")]
+    [ServerProperties.PropertyComment("Comma-separated worker indices for Heavy worlds.")]
+    public string HeavyWorkers { get; set; } = "2,3";
 }
 
 

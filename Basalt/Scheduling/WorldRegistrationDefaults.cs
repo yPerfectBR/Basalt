@@ -1,17 +1,14 @@
 namespace Basalt.Server.Scheduling;
 
 /// <summary>
-/// Default <see cref="WorldRegistration"/> values per profile until server.properties keys exist (Phase 3).
+/// Default <see cref="WorldRegistration"/> values per profile from server.properties.
 /// </summary>
 public static class WorldRegistrationDefaults
 {
-    /// <summary>Temporary default pool size until <c>world-thread-count</c> is added to Properties.</summary>
-    public const int DefaultWorkerCount = 4;
-
     /// <summary>
     /// Creates a registration with profile-appropriate default allowed workers, clamped to <paramref name="workerCount"/>.
     /// </summary>
-    public static WorldRegistration ForProfile(WorldProfile profile, string identifier, int workerCount = DefaultWorkerCount)
+    public static WorldRegistration ForProfile(WorldProfile profile, string identifier, int workerCount = 4)
     {
         int[] allowed = profile switch
         {
@@ -29,6 +26,46 @@ public static class WorldRegistrationDefaults
             Profile = profile,
             AllowedWorkers = allowed
         };
+    }
+
+    public static WorldRegistration ForProfile(WorldProfile profile, string identifier, Properties properties)
+    {
+        int[] allowed = profile switch
+        {
+            WorldProfile.Hub => ParseWorkers(properties.HubWorkers),
+            WorldProfile.Light => ParseWorkers(properties.LightWorkers),
+            WorldProfile.Heavy => ParseWorkers(properties.HeavyWorkers),
+            _ => [0]
+        };
+
+        allowed = ClampWorkers(allowed, properties.WorldThreadCount);
+
+        return new WorldRegistration
+        {
+            Identifier = identifier,
+            Profile = profile,
+            AllowedWorkers = allowed
+        };
+    }
+
+    public static int[] ParseWorkers(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return [0];
+        }
+
+        string[] parts = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        List<int> workers = [];
+        for (int i = 0; i < parts.Length; i++)
+        {
+            if (int.TryParse(parts[i], out int workerId))
+            {
+                workers.Add(workerId);
+            }
+        }
+
+        return workers.Count == 0 ? [0] : [.. workers];
     }
 
     static int[] ClampWorkers(int[] workers, int workerCount)

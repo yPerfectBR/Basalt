@@ -1,0 +1,210 @@
+namespace Basalt.Server.Scheduling;
+
+using Basalt.Protocol.Enums;
+using Basalt.RakNet;
+using Basalt.Server.Player;
+using Basalt.Server.Scheduling.Messages;
+using WorldInstance = Basalt.Server.World.World;
+
+/// <summary>
+/// Multi-worker scheduler: PickWorker, attach/detach, and packet routing to worker inboxes.
+/// </summary>
+public sealed class WorldScheduler : IWorldScheduler
+{
+    private const double ScoreEpsilon = 0.01;
+
+    private readonly Server _server;
+    private readonly WorldWorkerPool _pool;
+
+    public WorldScheduler(Server server)
+    {
+        _server = server;
+        _pool = new WorldWorkerPool(server.Properties.WorldThreadCount, server);
+    }
+
+    internal WorldWorkerPool Pool => _pool;
+
+    public void Start()
+    {
+        _pool.Start();
+    }
+
+    public void Stop()
+    {
+        _pool.Stop();
+    }
+
+    public void RequestAttach(WorldInstance world)
+    {
+        if (world.IsAttached)
+        {
+            return;
+        }
+
+        int workerId = PickWorker(world.Registration);
+        world.AttachedWorkerId = workerId;
+        _pool.GetWorker(workerId).Enqueue(new AttachWorldMessage { World = world });
+    }
+
+    public void RequestDetach(WorldInstance world)
+    {
+        if (world.PresentPlayerCount > 0 || !world.AttachedWorkerId.HasValue)
+        {
+            return;
+        }
+
+        int workerId = world.AttachedWorkerId.Value;
+        _pool.GetWorker(workerId).Enqueue(new DetachWorldMessage { World = world });
+    }
+
+    public IReadOnlyList<WorkerLoadMetrics> GetMetrics()
+    {
+        return _pool.GetAllMetrics();
+    }
+
+    public void EnqueueGamePacket(NetworkConnection connection, PacketId packetId, ReadOnlySpan<byte> payload)
+    {
+        int? workerId = ResolveWorkerForPacket(connection, packetId);
+        if (!workerId.HasValue)
+        {
+            return;
+        }
+
+        if (_server.Properties.WorldSchedulerDebug)
+        {
+            Logger.Debug("[PacketIngress] enqueue worker={0} packet={1}", workerId.Value, packetId);
+        }
+
+        _pool.GetWorker(workerId.Value).Enqueue(new ProcessPacketMessage
+        {
+            Connection = connection,
+            PacketId = packetId,
+            Payload = payload.ToArray()
+        });
+    }
+
+    public void EnqueueDisconnect(NetworkConnection connection)
+    {
+        int workerId = ResolveWorkerForDisconnect(connection) ?? 0;
+
+        if (_server.Properties.WorldSchedulerDebug)
+        {
+            Logger.Debug("[PacketIngress] enqueue disconnect worker={0}", workerId);
+        }
+
+        _pool.GetWorker(workerId).Enqueue(new ProcessDisconnectMessage
+        {
+            Connection = connection
+        });
+    }
+
+    public void DrainMainQueue()
+    {
+    }
+
+    internal int PickWorker(WorldRegistration registration)
+    {
+        if (registration.PreferredWorker is int preferred)
+        {
+            return preferred;
+        }
+
+        int bestWorker = registration.AllowedWorkers[0];
+        double bestScore = double.MaxValue;
+        int bestWorldCount = int.MaxValue;
+
+        foreach (int workerId in registration.AllowedWorkers)
+        {
+            WorkerLoadMetrics metrics = _pool.GetWorker(workerId).Metrics;
+            double score = ComputeScore(metrics, registration.Profile);
+            if (score + ScoreEpsilon < bestScore
+                || (Math.Abs(score - bestScore) <= ScoreEpsilon && metrics.ActiveWorldCount < bestWorldCount))
+            {
+                bestScore = score;
+                bestWorker = workerId;
+                bestWorldCount = metrics.ActiveWorldCount;
+            }
+        }
+
+        return bestWorker;
+    }
+
+    internal static double ComputeScore(WorkerLoadMetrics metrics, WorldProfile profile)
+    {
+        double profileWeight = profile switch
+        {
+            WorldProfile.Hub => 1.0,
+            WorldProfile.Light => 1.0,
+            WorldProfile.Heavy => 2.5,
+            _ => 1.0
+        };
+
+        return metrics.ActiveWorldCount * profileWeight
+            + metrics.TotalPresentPlayers * 0.5
+            + metrics.LastTickWorkMs
+            + metrics.TickLagMs * 2.0;
+    }
+
+    int? ResolveWorkerForPacket(NetworkConnection connection, PacketId packetId)
+    {
+        if (packetId == PacketId.ResourcePackClientResponse)
+        {
+            WorldInstance world = _server.GetWorld();
+            EnsureWorldRouted(world);
+            return world.AttachedWorkerId;
+        }
+
+        if (!_server.Sessions.TryGetValue(connection, out PlayerSession? session))
+        {
+            return null;
+        }
+
+        if (session.TransferState == TransferState.Transferring)
+        {
+            return null;
+        }
+
+        if (session.ActiveEntity?.Dimension?.World is WorldInstance entityWorld)
+        {
+            EnsureWorldRouted(entityWorld);
+            return entityWorld.AttachedWorkerId;
+        }
+
+        return null;
+    }
+
+    int? ResolveWorkerForDisconnect(NetworkConnection connection)
+    {
+        if (!_server.Sessions.TryGetValue(connection, out PlayerSession? session))
+        {
+            return null;
+        }
+
+        if (session.ActiveEntity?.Dimension?.World is WorldInstance world)
+        {
+            return world.AttachedWorkerId ?? PickWorker(world.Registration);
+        }
+
+        return 0;
+    }
+
+    void EnsureWorldRouted(WorldInstance world)
+    {
+        if (world.IsAttached)
+        {
+            return;
+        }
+
+        RequestAttach(world);
+    }
+
+    internal void SetWorkerMetrics(int workerId, WorkerLoadMetrics metrics)
+    {
+        WorkerLoadMetrics target = _pool.GetWorker(workerId).Metrics;
+        target.ActiveWorldCount = metrics.ActiveWorldCount;
+        target.TotalPresentPlayers = metrics.TotalPresentPlayers;
+        target.LastTickWorkMs = metrics.LastTickWorkMs;
+        target.TickLagMs = metrics.TickLagMs;
+        target.Tps = metrics.Tps;
+    }
+}
