@@ -78,19 +78,9 @@ public class Properties
     public bool WorldSchedulerEnabled { get; set; } = false;
 
     [ServerProperties.PropertyOrder(16)]
-    [ServerProperties.PropertyKey("world-profile-hub-workers")]
-    [ServerProperties.PropertyComment("Comma-separated worker indices for Hub worlds.")]
-    public string HubWorkers { get; set; } = "0";
-
-    [ServerProperties.PropertyOrder(17)]
-    [ServerProperties.PropertyKey("world-profile-light-workers")]
-    [ServerProperties.PropertyComment("Comma-separated worker indices for Light worlds.")]
-    public string LightWorkers { get; set; } = "1,2";
-
-    [ServerProperties.PropertyOrder(18)]
-    [ServerProperties.PropertyKey("world-profile-heavy-workers")]
-    [ServerProperties.PropertyComment("Comma-separated worker indices for Heavy worlds.")]
-    public string HeavyWorkers { get; set; } = "2,3";
+    [ServerProperties.PropertyKey("world-default-allowed-workers")]
+    [ServerProperties.PropertyComment("Comma-separated worker indices for worlds without world.json. Empty = all workers.")]
+    public string DefaultAllowedWorkers { get; set; } = "";
 }
 
 

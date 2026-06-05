@@ -1,58 +1,31 @@
 namespace Basalt.Server.Scheduling;
 
 /// <summary>
-/// Default <see cref="WorldRegistration"/> values per profile from server.properties.
+/// Default <see cref="WorldRegistration"/> values from server.properties when no per-world file exists.
 /// </summary>
 public static class WorldRegistrationDefaults
 {
     /// <summary>
-    /// Creates a registration with profile-appropriate default allowed workers, clamped to <paramref name="workerCount"/>.
+    /// Creates a registration using <see cref="Properties.DefaultAllowedWorkers"/>,
+    /// or all workers in the pool when unset.
     /// </summary>
-    public static WorldRegistration ForProfile(WorldProfile profile, string identifier, int workerCount = 4)
+    public static WorldRegistration ForWorld(string identifier, Properties properties)
     {
-        int[] allowed = profile switch
-        {
-            WorldProfile.Hub => [0],
-            WorldProfile.Light => [1, 2],
-            WorldProfile.Heavy => [2, 3],
-            _ => [0]
-        };
-
-        allowed = ClampWorkers(allowed, workerCount);
-
-        return new WorldRegistration
-        {
-            Identifier = identifier,
-            Profile = profile,
-            AllowedWorkers = allowed
-        };
-    }
-
-    public static WorldRegistration ForProfile(WorldProfile profile, string identifier, Properties properties)
-    {
-        int[] allowed = profile switch
-        {
-            WorldProfile.Hub => ParseWorkers(properties.HubWorkers),
-            WorldProfile.Light => ParseWorkers(properties.LightWorkers),
-            WorldProfile.Heavy => ParseWorkers(properties.HeavyWorkers),
-            _ => [0]
-        };
-
+        int[] allowed = ParseWorkers(properties.DefaultAllowedWorkers, properties.WorldThreadCount);
         allowed = ClampWorkers(allowed, properties.WorldThreadCount);
 
         return new WorldRegistration
         {
             Identifier = identifier,
-            Profile = profile,
             AllowedWorkers = allowed
         };
     }
 
-    public static int[] ParseWorkers(string value)
+    public static int[] ParseWorkers(string? value, int workerCount)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            return [0];
+            return [.. Enumerable.Range(0, workerCount)];
         }
 
         string[] parts = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -65,7 +38,7 @@ public static class WorldRegistrationDefaults
             }
         }
 
-        return workers.Count == 0 ? [0] : [.. workers];
+        return workers.Count == 0 ? [.. Enumerable.Range(0, workerCount)] : [.. workers];
     }
 
     static int[] ClampWorkers(int[] workers, int workerCount)

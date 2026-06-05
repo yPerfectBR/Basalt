@@ -51,9 +51,7 @@ namespace Basalt.Server
             if (!props.HasProperty("world-scheduler-debug")) props.SetBoolProperty("world-scheduler-debug", false);
             if (!props.HasProperty("world-thread-count")) props.SetNumericalProperty("world-thread-count", 4);
             if (!props.HasProperty("world-scheduler-enabled")) props.SetBoolProperty("world-scheduler-enabled", false);
-            if (!props.HasProperty("world-profile-hub-workers")) props.SetStringProperty("world-profile-hub-workers", "0");
-            if (!props.HasProperty("world-profile-light-workers")) props.SetStringProperty("world-profile-light-workers", "1,2");
-            if (!props.HasProperty("world-profile-heavy-workers")) props.SetStringProperty("world-profile-heavy-workers", "2,3");
+            if (!props.HasProperty("world-default-allowed-workers")) props.SetStringProperty("world-default-allowed-workers", "");
         }
 
     }
