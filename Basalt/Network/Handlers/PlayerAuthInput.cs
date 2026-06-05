@@ -2,6 +2,7 @@ namespace Basalt.Server.Network.Handlers;
 
 using System.Collections.Concurrent;
 using Basalt.Server;
+using Basalt.Server.Scheduling;
 using Basalt.Server.Block.Traits.Types;
 using Basalt.Server.Entity.Traits;
 using Basalt.Server.Entity.Traits.Types;
@@ -47,6 +48,13 @@ public static class PlayerAuthInput
             {
                 return;
             }
+
+#if DEBUG
+            if (player.Dimension?.World is global::Basalt.Server.World.World authWorld)
+            {
+                ThreadGuard.AssertWorldThread(authWorld);
+            }
+#endif
 
             if (MovedTooFar(player, packet, out ulong tickDelta))
             {

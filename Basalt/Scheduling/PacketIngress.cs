@@ -19,6 +19,11 @@ public sealed class PacketIngress
     {
         if (IsGlobalPacket(packetId))
         {
+            if (_server.Properties.WorldSchedulerDebug)
+            {
+                Logger.Debug("[PacketIngress] inline packet={0}", packetId);
+            }
+
             _server.Network.HandleGamePacketOnWorker(connection, packetId, payload);
             return;
         }
@@ -26,6 +31,11 @@ public sealed class PacketIngress
         if (!_server.Players.ContainsKey(connection))
         {
             return;
+        }
+
+        if (_server.Properties.WorldSchedulerDebug)
+        {
+            Logger.Debug("[PacketIngress] enqueue packet={0}", packetId);
         }
 
         _server.Scheduler.EnqueueGamePacket(connection, packetId, payload);

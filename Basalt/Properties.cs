@@ -61,6 +61,11 @@ public class Properties
     [ServerProperties.PropertyKey("plugins-directory")]
     [ServerProperties.PropertyComment("Directory where plugin DLLs are loaded from.")]
     public string PluginsDirectory { get; set; } = "plugins";
+
+    [ServerProperties.PropertyOrder(13)]
+    [ServerProperties.PropertyKey("world-scheduler-debug")]
+    [ServerProperties.PropertyComment("Verbose scheduler and packet routing logs.")]
+    public bool WorldSchedulerDebug { get; set; } = false;
 }
 
 

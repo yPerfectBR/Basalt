@@ -1,6 +1,7 @@
 namespace Basalt.Server.Network.Handlers;
 
 using Basalt.Server;
+using Basalt.Server.Scheduling;
 using Basalt.Server.Block.Traits.Types;
 using Basalt.Server.Entity.Traits;
 using Basalt.Server.Entity.Traits.Attribute;
@@ -53,6 +54,13 @@ public static class InventoryTransaction
         {
             return;
         }
+
+#if DEBUG
+        if (player.Dimension?.World is global::Basalt.Server.World.World inventoryWorld)
+        {
+            ThreadGuard.AssertWorldThread(inventoryWorld);
+        }
+#endif
 
         EntityInventoryTrait? inventory = player.GetTrait<EntityInventoryTrait>();
         if (inventory is null)

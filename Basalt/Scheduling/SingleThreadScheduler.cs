@@ -40,6 +40,12 @@ public sealed class SingleThreadScheduler : IWorldScheduler
         world.AttachedWorkerId = null;
     }
 
+    /// <summary>Pending messages in the main queue (for tests).</summary>
+    internal int PendingMessageCount => _mainQueue.Count;
+
+    /// <summary>Thread that last processed a queued message (for tests).</summary>
+    internal Thread? LastMessageProcessedOnThread { get; private set; }
+
     public IReadOnlyList<WorkerLoadMetrics> GetMetrics()
     {
         int activeWorldCount = 0;
@@ -88,15 +94,29 @@ public sealed class SingleThreadScheduler : IWorldScheduler
 
     void DrainMainQueue(int maxMessages)
     {
+#if DEBUG
+        ThreadGuard.CurrentWorkerId = 0;
+#endif
+
         int processed = 0;
         while (processed < maxMessages && _mainQueue.TryDequeue(out IWorldMessage? message))
         {
             processed++;
             try
             {
+                LastMessageProcessedOnThread = Thread.CurrentThread;
+
                 switch (message)
                 {
                     case ProcessPacketMessage packetMessage:
+                        if (_server.Properties.WorldSchedulerDebug)
+                        {
+                            Logger.Debug(
+                                "[Scheduler] ProcessPacketMessage packet={0} thread={1}",
+                                packetMessage.PacketId,
+                                Thread.CurrentThread.Name ?? Thread.CurrentThread.ManagedThreadId.ToString());
+                        }
+
                         _server.Network.HandleGamePacketOnWorker(
                             packetMessage.Connection,
                             packetMessage.PacketId,
@@ -104,6 +124,13 @@ public sealed class SingleThreadScheduler : IWorldScheduler
                         break;
 
                     case ProcessDisconnectMessage disconnectMessage:
+                        if (_server.Properties.WorldSchedulerDebug)
+                        {
+                            Logger.Debug(
+                                "[Scheduler] ProcessDisconnectMessage thread={0}",
+                                Thread.CurrentThread.Name ?? Thread.CurrentThread.ManagedThreadId.ToString());
+                        }
+
                         _server.Network.ProcessDisconnectOnWorker(disconnectMessage.Connection);
                         break;
                 }
