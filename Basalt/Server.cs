@@ -134,7 +134,48 @@ public sealed class Server
         }
         defaultWorld.ConfigurePersistence(Properties.WorldPath);
 
+        LoadAdditionalWorlds();
+
         Commands.RegisterDefaultCommands();
+    }
+
+    void LoadAdditionalWorlds()
+    {
+        if (string.IsNullOrWhiteSpace(Properties.AdditionalWorlds))
+        {
+            return;
+        }
+
+        if (!_generatorRegistry.TryGetValue("superflat", out Type? generatorType))
+        {
+            throw new KeyNotFoundException("No generator registered with identifier 'superflat'.");
+        }
+
+        string[] worldIds = Properties.AdditionalWorlds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        for (int i = 0; i < worldIds.Length; i++)
+        {
+            string worldId = worldIds[i];
+            if (worldId.Equals(DefaultWorldIdentifier, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string worldPath = Path.Combine("worlds", worldId);
+            WorldInstance? world = Properties.WorldProvider.Equals("memory", StringComparison.OrdinalIgnoreCase)
+                ? LoadWorld(worldId, Properties.WorldProvider)
+                : LoadWorld(worldId, Properties.WorldProvider, worldPath)
+                  ?? CreateWorld(worldId, Properties.WorldProvider, worldPath);
+
+            if (world is null)
+            {
+                continue;
+            }
+
+            if (world.GetDimension("overworld") is null)
+            {
+                world.CreateDimension("overworld", DimensionType.Overworld, generatorType);
+            }
+        }
     }
 
     public void Start()
@@ -422,6 +463,11 @@ public sealed class Server
         }
 
         throw new KeyNotFoundException($"World '{identifier}' was not found.");
+    }
+
+    public bool TryGetWorld(string identifier, out WorldInstance? world)
+    {
+        return _worlds.TryGetValue(identifier, out world);
     }
 
     public void RegisterProvider<TProvider>(string identifier) where TProvider : WorldProvider

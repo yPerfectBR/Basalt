@@ -1,9 +1,11 @@
 namespace Basalt.Server.Scheduling;
 
 using Basalt.Protocol.Enums;
+using Basalt.Protocol.Types;
 using Basalt.RakNet;
 using Basalt.Server.Player;
 using Basalt.Server.Scheduling.Messages;
+using Basalt.Server.World.Dimension;
 using WorldInstance = Basalt.Server.World.World;
 
 /// <summary>
@@ -115,7 +117,8 @@ public sealed class WorldScheduler : IWorldScheduler
 
         foreach (int workerId in registration.AllowedWorkers)
         {
-            WorkerLoadMetrics metrics = _pool.GetWorker(workerId).Metrics;
+            WorldWorker worker = _pool.GetWorker(workerId);
+            WorkerLoadMetrics metrics = GetWorkerLoad(worker);
             double score = ComputeScore(metrics);
             if (score + ScoreEpsilon < bestScore
                 || (Math.Abs(score - bestScore) <= ScoreEpsilon && metrics.ActiveWorldCount < bestWorldCount))
@@ -127,6 +130,38 @@ public sealed class WorldScheduler : IWorldScheduler
         }
 
         return bestWorker;
+    }
+
+    WorkerLoadMetrics GetWorkerLoad(WorldWorker worker)
+    {
+        int presetWorldCount = worker.Metrics.ActiveWorldCount;
+        int presetPlayerCount = worker.Metrics.TotalPresentPlayers;
+        double lastWorkMs = worker.Metrics.LastTickWorkMs;
+        double tickLagMs = worker.Metrics.TickLagMs;
+        double tps = worker.Metrics.Tps;
+
+        worker.RefreshMetrics();
+        int worldCount = Math.Max(presetWorldCount, worker.Metrics.ActiveWorldCount);
+        int playerCount = Math.Max(presetPlayerCount, worker.Metrics.TotalPresentPlayers);
+
+        foreach (WorldInstance world in _server.Worlds)
+        {
+            if (world.AttachedWorkerId == worker.WorkerId && !worker.HasAttachedWorld(world.Name))
+            {
+                worldCount++;
+                playerCount += world.PresentPlayerCount;
+            }
+        }
+
+        return new WorkerLoadMetrics
+        {
+            WorkerId = worker.WorkerId,
+            ActiveWorldCount = worldCount,
+            TotalPresentPlayers = playerCount,
+            LastTickWorkMs = lastWorkMs,
+            TickLagMs = tickLagMs,
+            Tps = tps
+        };
     }
 
     internal static double ComputeScore(WorkerLoadMetrics metrics)
@@ -198,5 +233,41 @@ public sealed class WorldScheduler : IWorldScheduler
         target.LastTickWorkMs = metrics.LastTickWorkMs;
         target.TickLagMs = metrics.TickLagMs;
         target.Tps = metrics.Tps;
+    }
+
+    public void BeginCrossWorldTransfer(
+        PlayerSession session,
+        WorldInstance targetWorld,
+        Dimension targetDimension,
+        Vec3f position)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(targetWorld);
+        ArgumentNullException.ThrowIfNull(targetDimension);
+
+        if (session.TransferState != TransferState.Idle)
+        {
+            throw new InvalidOperationException("Transfer already in progress.");
+        }
+
+        if (session.ActiveEntity?.Dimension?.World is not WorldInstance sourceWorld)
+        {
+            throw new InvalidOperationException("Player has no active world.");
+        }
+
+        if (!sourceWorld.AttachedWorkerId.HasValue)
+        {
+            throw new InvalidOperationException($"Source world '{sourceWorld.Name}' is not attached to a worker.");
+        }
+
+        session.TransferState = TransferState.Transferring;
+
+        _pool.GetWorker(sourceWorld.AttachedWorkerId.Value).Enqueue(new PrepareTransferMessage
+        {
+            Session = session,
+            TargetWorld = targetWorld,
+            TargetDimensionId = targetDimension.Identifier,
+            Position = position
+        });
     }
 }

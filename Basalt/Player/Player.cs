@@ -319,7 +319,7 @@ public sealed class Player : Entity.Entity
         SendAttributes();
     }
 
-    public void Teleport(Vec3f position, Dimension? dimension = null)
+    public void Teleport(Vec3f position, Dimension? dimension = null, bool forceDimensionChange = false)
     {
         Dimension? previousDimension = Dimension;
         Dimension targetDimension = dimension ?? previousDimension ??
@@ -346,7 +346,7 @@ public sealed class Player : Entity.Entity
 
         ulong tick = targetDimension.World is Tickable tickable ? tickable.TickValue : 0;
 
-        if (changedDimensionType)
+        if (changedDimensionType || forceDimensionChange)
         {
             Send(new ChangeDimensionPacket
             {
