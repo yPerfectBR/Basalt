@@ -35,7 +35,7 @@ public class TpCommand : Command
     }
 
     public override string? GetHelpMessage() =>
-        "§cUsage: /tp <destination> [dimension] | /tp <x> <y> <z> [dimension] | /tp <victim> <destination> [dimension] | /tp <victim> <x> <y> <z> [dimension]";
+        "§cUsage: /tp <world> | /tp <destination> [dimension] | /tp <x> <y> <z> [dimension] | /tp <victim> <destination> [dimension] | /tp <victim> <x> <y> <z> [dimension]";
 
     public override CommandResult? ExecuteManual(CommandExecutionState state, string[] tokens, int argumentOffset)
     {
@@ -69,6 +69,23 @@ public class TpCommand : Command
 
         if (args.Length == 1)
         {
+            if (TryResolveWorldTeleport(state, args[0], out WorldInstance targetWorld, out Dimension? targetDimension, out CommandResult? worldError))
+            {
+                CommandResult? executorError = RequireExecutor(executor);
+                if (executorError is not null)
+                {
+                    return executorError;
+                }
+
+                Vec3f position = executor!.Position;
+                return TeleportPlayers(state, [executor!], position, targetDimension, destinationName: targetWorld.Name);
+            }
+
+            if (worldError is not null)
+            {
+                return worldError;
+            }
+
             return TeleportExecutorToPlayer(state, executor, contextWorld, explicitDimensionId, args[0]);
         }
 
@@ -262,6 +279,53 @@ public class TpCommand : Command
         return true;
     }
 
+    static bool TryResolveWorldTeleport(
+        CommandExecutionState state,
+        string token,
+        out WorldInstance targetWorld,
+        out Dimension? targetDimension,
+        out CommandResult? error)
+    {
+        targetWorld = null!;
+        targetDimension = null;
+        error = null;
+
+        if (!state.Server.TryGetWorld(token, out WorldInstance? world) || world is null)
+        {
+            return false;
+        }
+
+        targetWorld = world;
+        targetDimension = world.GetDimension(DimensionType.Overworld) ?? world.GetDimension("overworld");
+        if (targetDimension is null)
+        {
+            error = CommandResult.Message($"§cWorld §a{token}§c has no overworld dimension.", false);
+            return false;
+        }
+
+        return true;
+    }
+
+    static bool NeedsCrossWorkerTransfer(Server server, WorldInstance sourceWorld, WorldInstance targetWorld)
+    {
+        if (!server.Properties.WorldSchedulerEnabled || server.Scheduler is not WorldScheduler)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(sourceWorld, targetWorld))
+        {
+            return false;
+        }
+
+        if (!targetWorld.IsAttached)
+        {
+            return true;
+        }
+
+        return sourceWorld.AttachedWorkerId != targetWorld.AttachedWorkerId;
+    }
+
     static CommandResult TeleportPlayers(
         CommandExecutionState state,
         List<Player> players,
@@ -278,6 +342,37 @@ public class TpCommand : Command
             Player player = players[i];
             try
             {
+                if (dimension?.World is not WorldInstance targetWorld)
+                {
+                    throw new InvalidOperationException("Target dimension is required.");
+                }
+
+                WorldInstance? sourceWorld = player.Dimension?.World;
+                if (sourceWorld is not null && NeedsCrossWorkerTransfer(state.Server, sourceWorld, targetWorld))
+                {
+                    if (player.Session is null)
+                    {
+                        throw new InvalidOperationException("Player has no session.");
+                    }
+
+                    WorldScheduler scheduler = (WorldScheduler)state.Server.Scheduler;
+                    scheduler.BeginCrossWorldTransfer(player.Session, targetWorld, dimension, position);
+                    successCount++;
+
+                    string label = destinationName ?? targetWorld.Name;
+                    if (ReferenceEquals(executor, player))
+                    {
+                        messages.Add($"§7Transferindo para §a{label}§7.");
+                    }
+                    else
+                    {
+                        messages.Add($"§7Transferindo §a{player.Username} §7para §a{label}§7.");
+                        player.SendMessage($"§7Transferindo para §a{label}§7.");
+                    }
+
+                    continue;
+                }
+
                 WorldInstance? previousWorld = player.Dimension?.World;
                 player.Teleport(position, dimension);
                 WorldInstance? newWorld = player.Dimension?.World;
