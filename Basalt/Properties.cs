@@ -81,6 +81,11 @@ public class Properties
     [ServerProperties.PropertyKey("world-default-allowed-workers")]
     [ServerProperties.PropertyComment("Comma-separated worker indices for worlds without world.json. Empty = all workers.")]
     public string DefaultAllowedWorkers { get; set; } = "";
+
+    [ServerProperties.PropertyOrder(17)]
+    [ServerProperties.PropertyKey("additional-worlds")]
+    [ServerProperties.PropertyComment("Comma-separated world identifiers to load at startup (from worlds/{id}).")]
+    public string AdditionalWorlds { get; set; } = "world_copy";
 }
 
 

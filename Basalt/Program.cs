@@ -52,6 +52,7 @@ namespace Basalt.Server
             if (!props.HasProperty("world-thread-count")) props.SetNumericalProperty("world-thread-count", 4);
             if (!props.HasProperty("world-scheduler-enabled")) props.SetBoolProperty("world-scheduler-enabled", false);
             if (!props.HasProperty("world-default-allowed-workers")) props.SetStringProperty("world-default-allowed-workers", "");
+            if (!props.HasProperty("additional-worlds")) props.SetStringProperty("additional-worlds", "world_copy");
         }
 
     }
