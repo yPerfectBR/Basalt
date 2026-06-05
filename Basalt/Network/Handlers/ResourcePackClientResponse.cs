@@ -186,8 +186,10 @@ public static class ResourcePackClientResponse
                 };
                 player.Position = startGame.PlayerPosition;
                 var dimension = server.GetWorld().GetDimension(DimensionType.Overworld);
-                if (dimension is not null)
+                if (dimension is not null && dimension.World is not null)
                 {
+                    Basalt.Server.Scheduling.WorldPlayerPresence.OnPlayerEnteredWorld(server, dimension.World);
+
                     EntitySpawnOptions options = new(InitialSpawn: true);
                     PlayerSpawnSignal spawnSignal = new(player, options);
                     server.Emit(spawnSignal);
@@ -206,10 +208,6 @@ public static class ResourcePackClientResponse
                     }
 
                     player.Spawn(dimension, spawnSignal.Options);
-                    if (dimension.World is not null)
-                    {
-                        Basalt.Server.Scheduling.WorldPlayerPresence.OnPlayerEnteredWorld(server, dimension.World);
-                    }
                 }
 
                 byte[] itemRegistryPayload = ItemPalette.GetItemRegistryPayload();

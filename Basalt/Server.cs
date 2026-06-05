@@ -100,7 +100,14 @@ public sealed class Server
         _raknet = new NetworkServer(new RaknetServerOptions(MaxMtu: Properties.Mtu, Port: Properties.Port));
         Network = new NetworkHandler(this);
         Plugins = new PluginManager(this);
-        _scheduler = new SingleThreadScheduler(this);
+        if (Properties.WorldThreadCount < 1)
+        {
+            throw new InvalidOperationException("world-thread-count must be >= 1.");
+        }
+
+        _scheduler = Properties.WorldSchedulerEnabled
+            ? new WorldScheduler(this)
+            : new SingleThreadScheduler(this);
         Players = new LegacyPlayersAdapter(this);
 
         RegisterProvider<LevelDbProvider>("leveldb");
@@ -235,8 +242,6 @@ public sealed class Server
 
     public void Stop()
     {
-        _scheduler.Stop();
-        Plugins.DisableAll();
         CancellationTokenSource? runCancellation = _runCancellation;
         Task? networkLoopTask = _networkLoopTask;
         _runCancellation = null;
@@ -280,6 +285,7 @@ public sealed class Server
             cancellation?.Dispose();
         }
 
+        Plugins.DisableAll();
         _scheduler.Stop();
         Logger.Info("Basalt successfully stopped.");
     }
@@ -440,21 +446,29 @@ public sealed class Server
 
     public void Tick()
     {
-        _scheduler.DrainMainQueue();
+        if (!Properties.WorldSchedulerEnabled)
+        {
+            _scheduler.DrainMainQueue();
+        }
+
         _serverTickValue++;
         long startTimestamp = Stopwatch.GetTimestamp();
         _raknet.Tick();
-        foreach (WorldInstance world in _worlds.Values.ToArray())
-        {
-            if (world.PresentPlayerCount <= 0)
-            {
-                continue;
-            }
 
-            long worldStartTimestamp = Stopwatch.GetTimestamp();
-            world.Tick();
-            long worldEndTimestamp = Stopwatch.GetTimestamp();
-            ((Tickable)world).TickWork = (worldEndTimestamp - worldStartTimestamp) * 1000.0 / Stopwatch.Frequency;
+        if (!Properties.WorldSchedulerEnabled)
+        {
+            foreach (WorldInstance world in _worlds.Values.ToArray())
+            {
+                if (world.PresentPlayerCount <= 0)
+                {
+                    continue;
+                }
+
+                long worldStartTimestamp = Stopwatch.GetTimestamp();
+                world.Tick();
+                long worldEndTimestamp = Stopwatch.GetTimestamp();
+                ((Tickable)world).TickWork = (worldEndTimestamp - worldStartTimestamp) * 1000.0 / Stopwatch.Frequency;
+            }
         }
 
         long endTimestamp = Stopwatch.GetTimestamp();
@@ -477,13 +491,23 @@ public sealed class Server
         }
 
         long timestampDelta = timestamp - _lastTpsTimestamp;
-        if (tickDelta == 0 || timestampDelta <= 0)
+        if (timestampDelta <= 0)
         {
             return;
         }
 
         double elapsedSeconds = (double)timestampDelta / Stopwatch.Frequency;
-        double currentTps = Math.Min(20.0, tickDelta / elapsedSeconds);
+        double currentTps;
+        if (Properties.WorldSchedulerEnabled)
+        {
+            IReadOnlyList<WorkerLoadMetrics> metrics = _scheduler.GetMetrics();
+            currentTps = metrics.Count == 0 ? 20.0 : metrics.Average(static metric => metric.Tps);
+        }
+        else
+        {
+            currentTps = tickDelta / elapsedSeconds;
+        }
+
         Tps = Tps == 0 ? currentTps : Tps + ((currentTps - Tps) * 0.2);
         _lastTpsTimestamp = timestamp;
         _lastTpsTick = _serverTickValue;
@@ -501,9 +525,9 @@ public sealed class Server
             : WorldProfile.Light;
 
         world.Registration = registration
-            ?? WorldRegistrationDefaults.ForProfile(profile, world.Name);
+            ?? WorldRegistrationDefaults.ForProfile(profile, world.Name, Properties);
 
-        WorldRegistration.Validate(world.Registration, WorldRegistrationDefaults.DefaultWorkerCount);
+        WorldRegistration.Validate(world.Registration, Properties.WorldThreadCount);
     }
 
     public void Broadcast(DataPacket packet, params PlayerInstance[]? exclude)
