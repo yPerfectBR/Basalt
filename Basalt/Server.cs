@@ -329,7 +329,7 @@ public sealed class Server
 
         WorldInstance world = new(name, provider);
         world.Server = this;
-        ApplyWorldRegistration(world, registration);
+        ApplyWorldRegistration(world, registration, ResolveWorldDataPath(providerIdentifier, providerArgs));
         _worlds[name] = world;
         return world;
     }
@@ -382,7 +382,7 @@ public sealed class Server
 
         WorldInstance world = new(name, provider);
         world.Server = this;
-        ApplyWorldRegistration(world, registration);
+        ApplyWorldRegistration(world, registration, ResolveWorldDataPath(providerIdentifier, providerArgs));
         _worlds[name] = world;
         return world;
     }
@@ -518,16 +518,28 @@ public sealed class Server
         return (deadlineTimestamp - timestamp) * 1000.0 / Stopwatch.Frequency;
     }
 
-    void ApplyWorldRegistration(WorldInstance world, WorldRegistration? registration)
+    void ApplyWorldRegistration(WorldInstance world, WorldRegistration? registration, string? worldDataPath = null)
     {
-        WorldProfile profile = world.Name.Equals(DefaultWorldIdentifier, StringComparison.OrdinalIgnoreCase)
-            ? WorldProfile.Hub
-            : WorldProfile.Light;
-
         world.Registration = registration
-            ?? WorldRegistrationDefaults.ForProfile(profile, world.Name, Properties);
+            ?? WorldRegistrationLoader.TryLoad(world.Name, worldDataPath)
+            ?? WorldRegistrationDefaults.ForWorld(world.Name, Properties);
 
         WorldRegistration.Validate(world.Registration, Properties.WorldThreadCount);
+    }
+
+    static string? ResolveWorldDataPath(string providerIdentifier, object[] providerArgs)
+    {
+        if (!providerIdentifier.Equals("leveldb", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (providerArgs.Length == 0 || providerArgs[0] is not string path || string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        return path;
     }
 
     public void Broadcast(DataPacket packet, params PlayerInstance[]? exclude)
