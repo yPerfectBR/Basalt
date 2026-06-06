@@ -24,7 +24,7 @@ public class Entity
 
     public EntityType Type { get; }
     public string Identifier => Type.Identifier;
-    public ulong RuntimeId { get; } = ++_runtimeCounter;
+    public ulong RuntimeId { get; }
     public long UniqueId => unchecked((long)RuntimeId);
     public Vec3f Position;
     public Vec3f Velocity;
@@ -51,11 +51,17 @@ public class Entity
     private readonly HashSet<EffectType> _effects = [];
 
 
-    public Entity(string identifier)
+    public Entity(string identifier, ulong? runtimeId = null)
     {
         if (string.IsNullOrWhiteSpace(identifier))
         {
             throw new ArgumentException("Entity identifier cannot be empty.", nameof(identifier));
+        }
+
+        RuntimeId = runtimeId ?? ++_runtimeCounter;
+        if (runtimeId.HasValue && runtimeId.Value >= _runtimeCounter)
+        {
+            _runtimeCounter = runtimeId.Value;
         }
 
         Type = EntityType.GetOrCreate(identifier);
