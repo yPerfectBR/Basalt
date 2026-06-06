@@ -1,7 +1,18 @@
 .vs
+
+# .NET build output (any depth)
+[Bb]in/
+[Oo]bj/
+[Aa]rtifacts/
+
+# Legacy patterns kept for clarity
 */bin/**/*
 */obj/**/*
 */artifacts/**/*
+**/bin/**/*
+**/obj/**/*
+**/artifacts/**/*
+
 *.lscache
 
 worlds
