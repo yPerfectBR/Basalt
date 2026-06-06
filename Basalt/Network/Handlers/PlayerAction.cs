@@ -1,8 +1,10 @@
 namespace Basalt.Server.Network.Handlers;
 
+using Basalt.Protocol.Enums;
 using Basalt.Server;
 using Basalt.Protocol.Packets;
 using Basalt.RakNet;
+using Basalt.Server.Player.Traits;
 
 
 public static class PlayerAction
@@ -16,6 +18,14 @@ public static class PlayerAction
 
         if (!SessionLookup.TryGetPlayer(server, connection, out global::Basalt.Server.Player.Player? player))
         {
+            return;
+        }
+
+        if (packet.ActionType == PlayerActionType.ChangeDimensionAck)
+        {
+            PlayerChunkRenderingTrait? chunkRendering = player.GetTrait<PlayerChunkRenderingTrait>();
+            chunkRendering?.ForceReloadViewDistance();
+            player.FlushClientWorldStateSyncIfPending(force: true);
             return;
         }
 

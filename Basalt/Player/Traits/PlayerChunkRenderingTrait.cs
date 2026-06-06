@@ -90,6 +90,39 @@ public sealed class PlayerChunkRenderingTrait : PlayerTrait
         }
     }
 
+    public void FlushClientChunks()
+    {
+        lock (_lock)
+        {
+            if (Player.Dimension is null)
+            {
+                return;
+            }
+
+            UnloadChunks(Player.Dimension, clearClient: true, force: true);
+        }
+    }
+
+    public void ForceReloadViewDistance()
+    {
+        lock (_lock)
+        {
+            if (!_started || Player.Dimension is null)
+            {
+                StartChunkLoad();
+                return;
+            }
+
+            ResetScan();
+            _requestedChunks.Clear();
+            _readyChunks.Clear();
+            UpdateTrackedChunkPosition();
+            UnloadChunks(Player.Dimension, clearClient: true);
+            UpdateSimulationChunks(Player.Dimension);
+            SendPublisherUpdate(includeSavedChunks: true);
+        }
+    }
+
     public override void OnSpawn(EntitySpawnOptions details)
     {
         UpdateTrackedChunkPosition();
