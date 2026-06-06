@@ -151,15 +151,15 @@ public sealed class WorldSchedulerTests
     public void Detach_OnLastPlayer_ClearsAttachedWorkerId()
     {
         Server server = TestServerFactory.CreateMultiWorkerServer();
+        WorldScheduler scheduler = TestServerFactory.RequireWorldScheduler(server);
         World world = server.GetWorld();
 
         WorldPlayerPresence.OnPlayerEnteredWorld(server, world);
-        WorldPlayerPresence.OnPlayerLeftWorld(server, world);
+        TestServerFactory.DrainAllWorkers(scheduler);
+        Assert.True(world.IsAttached);
 
-        for (int i = 0; i < 50 && world.IsAttached; i++)
-        {
-            Thread.Sleep(10);
-        }
+        WorldPlayerPresence.OnPlayerLeftWorld(server, world);
+        TestServerFactory.DrainAllWorkers(scheduler);
 
         Assert.Equal(0, world.PresentPlayerCount);
         Assert.False(world.IsAttached);
