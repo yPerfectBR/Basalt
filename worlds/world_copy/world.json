@@ -1,0 +1,4 @@
+{
+  "identifier": "world_copy",
+  "allowedWorkers": [0, 1]
+}
