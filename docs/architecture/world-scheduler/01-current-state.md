@@ -2,12 +2,12 @@
 
 This document has two parts:
 
-1. **Implementation status** — what exists on branch `world-scheduler` through **Phase 4** (below).
+1. **Implementation status** — what exists on branch `world-scheduler` through **Phase 5** (below).
 2. **Baseline audit** — how Basalt worked **before** the scheduler (historical reference for regressions).
 
 ---
 
-## Implementation status (Phases 0–4 complete)
+## Implementation status (Phases 0–5 complete)
 
 | Area | Status | Notes |
 |------|--------|-------|
@@ -20,7 +20,11 @@ This document has two parts:
 | Active-only ticking | Done | Dormant worlds not ticked |
 | Cross-worker transfer | Done | Phase 4; `/tp <world>` via snapshot protocol |
 | `additional-worlds` boot | Done | Loads e.g. `world_copy` at startup |
-| `/worldscheduler` debug command | **Not done** | Phase 5 |
+| `/worldscheduler` debug command | Done | Phase 5; alias `/scheddebug` |
+| `IWorldScheduler.GetMetrics()` | Done | Per-worker TPS, worlds, players |
+| `Server.RunOnWorldThread` | Done | Phase 5; sync cross-thread helper |
+| `Server.Emit` event affinity | Done | Global inline; world-bound on worker |
+| `Server.Players` adapter | Removed | Use `Sessions` + `ActiveEntity` |
 
 ### Config in use (smoke test)
 
@@ -239,16 +243,6 @@ Do **not** add ad-hoc locks throughout simulation code. Prefer **message passing
 
 ---
 
-## What is NOT implemented (Phase 5)
-
-- Scheduler metrics API and `/worldscheduler` debug command
-- `Server.RunOnWorldThread` helper for plugins
-- Removal of obsolete `Server.Players` adapter
-
-Phases 0–4 items listed in older versions of this doc **are implemented** — see table above.
-
----
-
 ## Next steps
 
-Read [02-core-concepts.md](./02-core-concepts.md) for invariants, then [08-phased-implementation.md](./08-phased-implementation.md) for Phase 4+.
+All scheduler phases (0–5) are implemented. See [02-core-concepts.md](./02-core-concepts.md) for invariants and plugin thread rules.

@@ -227,7 +227,7 @@ foreach (PlayerSession session in server.Sessions.Online)
 
 Plugins must not cache `Player` entity references across ticks without verifying the entity is still the session's active entity.
 
-Helper (Phase 5):
+Helper:
 
 ```csharp
 server.RunOnWorldThread(world, () => { /* safe world mutation */ });

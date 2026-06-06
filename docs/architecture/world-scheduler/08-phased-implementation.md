@@ -251,12 +251,12 @@ See full map in [05-player-session-split.md](./05-player-session-split.md).
 
 ### Deliverables
 
-- [ ] `WorkerLoadMetrics` exposed via API
-- [ ] Command `/worldscheduler` or `/scheddebug` (op only)
-- [ ] `Server.RunOnWorldThread(world, action)` helper
-- [ ] Event affinity: world events on worker thread in `Server.Emit`
-- [ ] Plugin documentation in agent guide
-- [ ] Remove obsolete `Server.Players` adapter
+- [x] `WorkerLoadMetrics` exposed via API (`IWorldScheduler.GetMetrics()`)
+- [x] Command `/worldscheduler` or `/scheddebug` (op only)
+- [x] `Server.RunOnWorldThread(world, action)` helper
+- [x] Event affinity: world events on worker thread in `Server.Emit`
+- [x] Plugin documentation in agent guide
+- [x] Remove obsolete `Server.Players` adapter
 
 ### Files to create
 

@@ -111,12 +111,40 @@ Operational guide for AI agents (and human developers) implementing the World Sc
 
 ### Phase 5
 
-1. Metrics API + debug command
-2. `RunOnWorldThread` helper
-3. `Server.Emit` affinity
-4. Remove `Players` adapter
+1. Metrics API + debug command — **done**
+2. `RunOnWorldThread` helper — **done**
+3. `Server.Emit` affinity — **done**
+4. Remove `Players` adapter — **done**
 
 ---
+
+## Plugin thread rules (Phase 5)
+
+Plugins interact with the server at two levels:
+
+**Session / global (any thread):**
+
+- Iterate `server.Sessions` for online identity
+- Register handlers for `ServerStart`, `PlayerJoin` (before spawn)
+- Read-only session fields (`Username`, `Uuid`, connection)
+
+**World-bound (worker thread only):**
+
+- Mutate blocks, entities, inventories, or world state
+- Handle `PlayerBreakBlock`, `PlayerSpawn`, `EntityHurt`, etc.
+- Use `server.RunOnWorldThread(world, () => { ... })` when posting work from console or async code
+
+**Rules:**
+
+| Do | Don't |
+|----|-------|
+| Resolve `Player` via `session.ActiveEntity` each tick | Cache `Player` in static plugin fields |
+| Use `RunOnWorldThread` for world mutations from non-worker threads | Call `Dimension.SetBlock` from Login handler |
+| Check `session.ActiveEntity?.Dimension?.World` before world logic | Assume `ActiveEntity` survives transfer |
+
+Event affinity is enforced in `Server.Emit`: global events run inline; world-bound events are dispatched synchronously on the owning worker via `RunOnWorldThread`.
+
+Debug: `/worldscheduler` (alias `/scheddebug`) prints per-worker TPS, active worlds, and player counts.
 
 ## Logging conventions
 

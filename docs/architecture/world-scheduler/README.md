@@ -92,6 +92,8 @@ sequenceDiagram
 | [10-config-reference.md](./10-config-reference.md) | Config reference | server.properties + per-world JSON |
 | [11-agent-implementation-guide.md](./11-agent-implementation-guide.md) | Agent guide | Rules, PR template, checklists |
 
+**Human review / smoke tests:** [docs/review/](../../review/README.md) — checklist resumido para quem vem do Basalt original.
+
 ---
 
 ## Reading order (humans and AI agents)
@@ -115,9 +117,11 @@ sequenceDiagram
 | **2** | PlayerSession split | **Done** |
 | **3** | Worker pool, PickWorker, attach/detach | **Done** |
 | **4** | Cross-worker transfer | **Done** |
-| **5** | Metrics, plugins, debug | Not started |
+| **5** | Metrics, plugins, debug | **Done** |
 
 **Do not skip phases.** Phase 3 requires Phase 1 and Phase 2.
+
+**Smoke tests (human reviewers):** [docs/review/quick-test-checklist.md](../../review/quick-test-checklist.md)
 
 ---
 

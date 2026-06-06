@@ -2,6 +2,8 @@
 
 Test matrix per phase: automated tests, manual verification, regression, and stress scenarios.
 
+**Smoke tests rápidos (reviewers):** [docs/review/quick-test-checklist.md](../../review/quick-test-checklist.md) — checklist resumido com comandos e resultados esperados (~15 min). Checklists manuais abaixo permanecem como referência detalhada por fase.
+
 Suggested test project: `tests/Basalt.Tests/` (xUnit or NUnit). Create in Phase 1.
 
 ---
@@ -90,7 +92,7 @@ With `world-scheduler-debug=true`:
 | `Session_SurvivesEntityDespawn` | unit | ActiveEntity null, session still in Sessions |
 | `NpcPlayer_HasNoSession` | unit | `player.Session == null` |
 | `Sessions_GetOnlineEntities_SkipsNullActiveEntity` | unit | Mid-transfer excluded |
-| `LegacyPlayersAdapter_MatchesSessions` | unit | Compatibility shim |
+| `LegacyPlayersAdapter_MatchesSessions` | unit | Removed with Phase 5 adapter cleanup |
 
 ### Manual
 
@@ -187,8 +189,10 @@ Run: `dotnet test --filter CrossWorkerTransfer`
 | Test | Type | Assertion |
 |------|------|-----------|
 | `GetMetrics_ReturnsAllWorkers` | unit | Count == world-thread-count |
-| `Metrics_ActiveWorldCount_UpdatesOnAttachDetach` | integration | |
+| `Metrics_ActiveWorldCount_UpdatesOnAttachDetach` | integration | Attach/detach updates worker metrics |
 | `RunOnWorldThread_ExecutesOnWorkerThread` | unit | Thread id match |
+
+Implemented in [`WorldSchedulerObservabilityTests.cs`](../../../tests/Basalt.Tests/Scheduling/WorldSchedulerObservabilityTests.cs).
 
 ### Manual
 
