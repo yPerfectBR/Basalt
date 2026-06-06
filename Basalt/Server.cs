@@ -62,12 +62,6 @@ public sealed class Server
     private ulong _serverTickValue;
     private readonly Dictionary<ServerEvent, List<Delegate>> _signalHandlers = [];
     /// <summary>
-    /// Registry for players (legacy; use <see cref="Sessions"/>).
-    /// </summary>
-    [Obsolete("Use Sessions and session.ActiveEntity")]
-    public IReadOnlyDictionary<NetworkConnection, PlayerInstance> Players { get; }
-
-    /// <summary>
     /// Central registry of connected player sessions.
     /// </summary>
     public ConcurrentDictionary<NetworkConnection, PlayerSession> Sessions { get; } = new();
@@ -108,7 +102,6 @@ public sealed class Server
         _scheduler = Properties.WorldSchedulerEnabled
             ? new WorldScheduler(this)
             : new SingleThreadScheduler(this);
-        Players = new LegacyPlayersAdapter(this);
 
         RegisterProvider<LevelDbProvider>("leveldb");
         RegisterProvider<InMemoryProvider>("memory");
@@ -258,6 +251,37 @@ public sealed class Server
     public void Emit(ServerEvent @event, ISignal signal)
     {
         ArgumentNullException.ThrowIfNull(signal);
+        if (SignalAffinity.IsGlobalEvent(signal))
+        {
+            EmitHandlersInline(@event, signal);
+            return;
+        }
+
+        WorldInstance? world = SignalAffinity.TryResolveWorld(this, signal);
+        if (world is null)
+        {
+            EmitHandlersInline(@event, signal);
+            return;
+        }
+
+        _scheduler.RunOnWorldThread(world, () => EmitHandlersInline(@event, signal));
+    }
+
+    public void Emit(ISignal signal)
+    {
+        Emit(signal.Event, signal);
+    }
+
+    /// <summary>
+    /// Runs an action on the simulation thread that owns the given world.
+    /// </summary>
+    public void RunOnWorldThread(WorldInstance world, Action action)
+    {
+        _scheduler.RunOnWorldThread(world, action);
+    }
+
+    void EmitHandlersInline(ServerEvent @event, ISignal signal)
+    {
         if (!_signalHandlers.TryGetValue(@event, out List<Delegate>? handlers))
         {
             return;
@@ -274,11 +298,6 @@ public sealed class Server
 
             handler.DynamicInvoke(signal);
         }
-    }
-
-    public void Emit(ISignal signal)
-    {
-        Emit(signal.Event, signal);
     }
 
     public void Stop()
