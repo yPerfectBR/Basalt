@@ -1,6 +1,10 @@
 # 07 — Cross-Worker Transfer
 
-Moving a player between worlds (or dimensions on different workers) requires a coordinated protocol across session layer, scheduler, and two workers.
+Moving a player between worlds requires coordinated steps across session layer, scheduler, and one or two workers. **Game state is per-world**; the session carries only connection data.
+
+> **Default cross-world behavior:** the player enters the target world with that world's LevelDB save (inventory, gamemode, op, saved position). Nothing from the source world is merged unless the `/tp` command passes explicit `--carry` flags.
+
+---
 
 ## When transfer crosses workers
 
@@ -8,13 +12,31 @@ Moving a player between worlds (or dimensions on different workers) requires a c
 |----------|-------------|--------------|
 | Teleport within same world | Yes | No |
 | Teleport to dimension in same world | Yes | No |
-| Teleport to different world, same worker | Yes | No |
+| Teleport to different world, same worker | Yes (via `PlayerWorldTransfer`) | No |
 | Teleport island (worker 1) → dungeon (worker 3) | No | **Yes** |
 | Disconnect | Detach if last player | N/A |
 
-Same-worker path: existing `Player.Teleport` logic on worker thread (Phase 4 minor cleanup).
+- **Cross-worker:** snapshot protocol below (`PrepareTransfer` / `CompleteTransfer`).
+- **Same-worker cross-world:** [`PlayerWorldTransfer.ApplySameWorker`](../../../Basalt/Player/PlayerWorldTransfer.cs) (save source, load target NBT, resync). No snapshot messages.
 
-Cross-worker path: protocol below.
+---
+
+## Per-world state and carry flags
+
+| Layer | Contents |
+|-------|----------|
+| `PlayerSession` | Connection, identity, skin, `ActiveEntity`, `TransferState` |
+| Target world LevelDB | Base entity NBT on arrival (default) |
+| `--carry inventory` | Merge inventory + equipment from source snapshot |
+| `--carry position` | Use source position/rotation instead of target save |
+
+Position resolution for `/tp <world>` (no explicit coordinates):
+
+1. `--carry position` → current source position
+2. Else → saved `x`/`y`/`z` from target world's LevelDB
+3. Else → default spawn `(0, -57, 0)`
+
+Explicit coordinates (`/tp x y z`) always override saved position.
 
 ---
 
@@ -35,26 +57,36 @@ While `TransferState.Transferring`:
 
 ---
 
-## Entity snapshot
+## Entity snapshot (cross-worker only)
 
-Minimal serializable state to recreate entity on target worker:
+Partial serializable state — **not** a full entity clone:
 
 ```csharp
 public sealed class PlayerEntitySnapshot
 {
     public required string Username { get; init; }
+    public required string Xuid { get; init; }
     public required Guid Uuid { get; init; }
-    public required Vec3f Position { get; init; }
-    public required string TargetWorldId { get; init; }
-    public required string TargetDimensionId { get; init; }
+    public required Vec3f Position { get; init; }  // resolved destination
     public float Pitch { get; init; }
     public float Yaw { get; init; }
-    public Gamemode Gamemode { get; init; }
-    public CompoundTag EntityNbt { get; init; }  // inventory, attributes, etc.
+    public float HeadYaw { get; init; }
+    public TransferCarryFlags CarryFlags { get; init; }
+    public required CompoundTag SourceEntityNbt { get; init; }  // merge source only
+    // + transfer metadata: RuntimeId, SourceWorldId, TargetWorldId, ...
 }
 ```
 
-Built on source worker from `Player.WriteToNbt()` plus transfer metadata.
+On **PrepareTransfer**, the source worker:
+
+1. `SavePlayerData` on the **source** world (full current state).
+2. Captures `SourceEntityNbt` for optional carry merge.
+3. Despawns and enqueues `CompleteTransferMessage`.
+
+On **CompleteTransfer**, the target worker:
+
+1. `BuildEntityNbtFromSnapshot` → load target save, apply carry flags.
+2. `FromNBT`, spawn, `ResyncAfterWorldTransfer` → `SyncClientWorldState` (inventário, hotbar, gamemode, atributos).
 
 ---
 
@@ -62,78 +94,48 @@ Built on source worker from `Player.WriteToNbt()` plus transfer metadata.
 
 ```mermaid
 sequenceDiagram
-    participant Cmd as CommandOrTeleport
+    participant Cmd as Teleport
+    participant PWT as PlayerWorldTransfer
     participant S as PlayerSession
-    participant Sch as WorldScheduler
     participant Src as SourceWorker
     participant Dst as TargetWorker
 
-    Cmd->>S: BeginTransfer targetWorld
-    S->>S: TransferState = Transferring
+    Cmd->>PWT: ResolveTransform + carry flags
+    Cmd->>S: BeginCrossWorldTransfer
     S->>Src: PrepareTransferMessage
-    Src->>Src: snapshot = Capture entity
+    Src->>PWT: SaveToWorld source
     Src->>Src: Despawn RemoveEntity
-    Src->>Sch: RequestDetach if last player
-    Src->>Sch: RequestAttach targetWorld
-    Sch->>Dst: AttachWorld if needed
-    Sch->>Dst: CompleteTransferMessage snapshot
-    Dst->>Dst: Create Player from snapshot
-    Dst->>Dst: Spawn in dimension
-    Dst->>S: ActiveEntity = newEntity
-    S->>S: TransferState = Idle
-    S->>S: Send ChangeDimension or MovePlayer packets
+    Src->>Dst: CompleteTransferMessage snapshot
+    Dst->>PWT: BuildEntityNbtFromSnapshot target save
+    Dst->>Dst: Spawn ResyncAfterWorldTransfer
+    Dst->>Dst: SyncClientWorldState inventory hotbar gamemode attributes
+    Dst->>S: ActiveEntity Idle
 ```
-
-### Step 1 — BeginTransfer (session / command thread)
-
-```csharp
-public void BeginCrossWorldTransfer(PlayerSession session, World targetWorld, Vec3f position, Dimension? dimension)
-{
-    if (session.TransferState != TransferState.Idle)
-        throw new InvalidOperationException("Transfer already in progress.");
-
-    session.TransferState = TransferState.Transferring;
-    var request = new PrepareTransferMessage(session, targetWorld, position, dimension);
-    _scheduler.EnqueueToWorker(session.ActiveEntity!.Dimension!.World!.AttachedWorkerId!.Value, request);
-}
-```
-
-### Step 2 — PrepareTransfer (source worker)
-
-1. Capture `PlayerEntitySnapshot`.
-2. Decrement `PresentPlayerCount` on source world.
-3. `Despawn` entity, remove from dimension.
-4. Set `session.ActiveEntity = null` (via thread-safe session update).
-5. If `PresentPlayerCount == 0`, `RequestDetach(sourceWorld)`.
-6. `RequestAttach(targetWorld)` — scheduler runs PickWorker.
-7. Enqueue `CompleteTransferMessage` on **target** worker with snapshot.
-
-### Step 3 — CompleteTransfer (target worker)
-
-1. Ensure world attached on this worker.
-2. Increment `PresentPlayerCount` on target world.
-3. Create `Player` from snapshot; set `player.Session = session`.
-4. `player.FromNBT(snapshot.EntityNbt)`.
-5. `Spawn(targetDimension, options)`.
-6. Set `session.ActiveEntity = player`.
-7. Set `session.TransferState = Idle`.
-8. Send client packets (`ChangeDimensionPacket` if dimension type changes, else `MovePlayerPacket`).
 
 ---
 
 ## Integration with Teleport command
 
-File: `Basalt/Commands/List/Operator/Teleport.cs`
+File: [`Basalt/Commands/List/Operator/Teleport.cs`](../../../Basalt/Commands/List/Operator/Teleport.cs)
+
+```
+/tp world_copy
+/tp world_copy --carry inventory
+/tp world_copy --carry position
+/tp world_copy --carry inventory,position
+/tp 100 64 200 --carry inventory
+```
+
+Cross-world branch:
 
 ```csharp
-if (sourceWorld.AttachedWorkerId != targetWorld.AttachedWorkerId
-    || !targetWorld.IsAttached)
+if (PlayerWorldTransfer.IsCrossWorld(sourceWorld, targetWorld))
 {
-    session.BeginCrossWorldTransfer(targetWorld, position, dimension);
-    return CommandResult.Success();
+    if (NeedsCrossWorkerTransfer(...))
+        scheduler.BeginCrossWorldTransfer(session, targetWorld, dimension, transform, carryFlags);
+    else
+        PlayerWorldTransfer.ApplySameWorker(server, player, targetWorld, dimension, transform, carryFlags);
 }
-
-// Same worker: existing player.Teleport(position, dimension)
 ```
 
 ---
@@ -144,7 +146,7 @@ If target world has no players:
 
 1. `RequestAttach(targetWorld)` runs PickWorker.
 2. Worker loads world state lazily.
-3. `CompleteTransfer` spawns player.
+3. `CompleteTransfer` spawns player from target save (+ carry merge).
 
 First player entering an island **always** triggers attach — consistent with Skyblock model.
 
@@ -156,21 +158,8 @@ If `CompleteTransfer` fails (world load error):
 
 1. Log error.
 2. `session.TransferState = Idle`.
-3. Teleport player to server default world spawn (emergency) or disconnect with message.
+3. Disconnect with message.
 4. Never leave session with null entity and Idle state without recovery.
-
----
-
-## Same-worker optimization
-
-Skip snapshot protocol when:
-
-```csharp
-sourceWorld.AttachedWorkerId == targetWorld.AttachedWorkerId
-&& targetWorld.IsAttached
-```
-
-Call `player.Teleport(position, dimension)` directly on worker.
 
 ---
 
@@ -181,14 +170,13 @@ Call `player.Teleport(position, dimension)` directly on worker.
 | PrepareTransfer despawn | -1 | unchanged |
 | CompleteTransfer spawn | unchanged | +1 |
 
-Avoid double decrement if multiple players transfer simultaneously — each transfer only affects its own entity.
-
 ---
 
-## Related code (current)
+## Related code
 
-- `Basalt/Player/Player.cs` — `Teleport()` lines ~329–391
-- `Basalt/Commands/List/Operator/Teleport.cs` — `TeleportPlayers`, dimension resolution
+- [`PlayerWorldTransfer.cs`](../../../Basalt/Player/PlayerWorldTransfer.cs) — save/load, resolve position, build NBT, same-worker path
+- [`CrossWorldTransferHandler.cs`](../../../Basalt/Scheduling/CrossWorldTransferHandler.cs) — cross-worker prepare/complete
+- [`Teleport.cs`](../../../Basalt/Commands/List/Operator/Teleport.cs) — `--carry` parsing
 
 ---
 

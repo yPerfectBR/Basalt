@@ -16,7 +16,8 @@ tests/Basalt.Tests/
 │   ├── WorldRegistrationTests.cs
 │   └── ActiveWorldTickTests.cs  # Phase 1
 ├── Player/
-│   └── PlayerSessionTests.cs    # Phase 2
+│   ├── PlayerSessionTests.cs    # Phase 2
+│   └── PlayerWorldTransferTests.cs  # Per-world transfer
 └── Integration/
     ├── AttachDetachTests.cs     # Phase 3
     └── CrossWorkerTransferTests.cs  # Phase 4
@@ -96,13 +97,13 @@ With `world-scheduler-debug=true`:
 - [ ] `/list` shows correct count and names
 - [ ] Global chat broadcast reaches all players
 - [ ] `/tp @s @p` between two players
-- [ ] Operator permissions still work (`/op`, `/deop`, `/gamemode`)
+- [ ] Operator permissions work **per world** (`/op`, `/deop` — status saved in that world's LevelDB)
 - [ ] Player list packet on join shows skins
 
 ### Regression
 
 - [ ] Duplicate login kick still works ([`Login.cs`](../../../Basalt/Network/Handlers/Login.cs))
-- [ ] NBT load on login preserves gamemode and op status
+- [ ] NBT load on login preserves gamemode and op status **for the default world only**
 
 ---
 
@@ -126,7 +127,9 @@ With `world-scheduler-debug=true`:
 - [x] Login on `world` → `[Attach] world=world worker=0`
 - [x] `/tp world_copy` → `[Transfer]` + `[Attach] world=world_copy worker=1` + gameplay on worker 1
 - [ ] `/tp world` return transfer to worker 0
-- [ ] Inventory and position preserved after cross-worker tp
+- [ ] **Default cross-world:** inventory and gamemode come from **target** world save (not source)
+- [ ] `/tp world_copy --carry inventory` preserves source inventory
+- [ ] `/tp world_copy --carry position` uses source coordinates; without flag uses target save or spawn
 
 ### Stress
 
@@ -150,8 +153,15 @@ With `world-scheduler-debug=true`:
 | `CrossWorkerTransfer_PickWorkerChoosesFreerThread` | unit | `[0,1]` picks worker 1 when worker 0 loaded |
 | `CrossWorkerTransfer_TargetWorldAttachIfDormant` | integration | Dormant world gets `AttachedWorkerId` |
 | `CrossWorkerTransfer_SessionHasOneEntityAfterComplete` | integration | Single entity on target worker after transfer |
-| `SameWorkerTransfer_SkipsSnapshotProtocol` | unit | Same worker uses direct `Teleport` |
+| `SameWorkerCrossWorld_UsesPerWorldTransferWithoutSnapshotProtocol` | integration | Same worker cross-world uses `PlayerWorldTransfer` |
 | `TransferFailure_SessionNotStuckTransferring` | integration | Abort clears `TransferState` |
+
+| `BuildEntityNbtFromSnapshot_WithoutCarry_UsesTargetSave` | unit | Target LevelDB base, source ignored |
+| `BuildEntityNbtFromSnapshot_WithCarryInventory_MergesSourceInventory` | unit | `--carry inventory` merge |
+| `ResolveDestinationTransform_*` | unit | Saved position, carry position, explicit coords, default spawn |
+| `SaveToWorld_PersistsPlayerDataOnProvider` | unit | Source saved before despawn |
+
+Run: `dotnet test --filter PlayerWorldTransfer`
 
 Run: `dotnet test --filter CrossWorkerTransfer`
 
@@ -159,7 +169,8 @@ Run: `dotnet test --filter CrossWorkerTransfer`
 
 - [x] `/tp world_copy` from default world — verify worker 1 in debug logs
 - [ ] Teleport between worlds on different workers via coordinates + dimension
-- [ ] Inventory preserved after transfer
+- [ ] **Default:** target world save used (inventory isolated per world)
+- [ ] `--carry inventory` and `--carry position` behave as documented
 - [ ] Return `/tp world` works
 
 ### Regression

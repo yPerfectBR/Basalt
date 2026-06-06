@@ -70,9 +70,24 @@ Represents a **connected client**. Thread-safe. Lives in `Server.Sessions`.
 
 Represents an **entity in a world**. Worker-local. Inherits `Entity`.
 
-- `Position`, `Dimension`, traits, inventory
+- `Position`, `Dimension`, traits, inventory, gamemode, operator status
 - May exist **without** a session (NPCs, fake players)
 - Mutated **only** on the worker that owns its world
+
+### Player data scope: per-world
+
+All **game state** is scoped to a world and persisted in that world's provider (`WorldProvider.SavePlayerData` / `LoadPlayerData` by XUID):
+
+| Data | Storage | Notes |
+|------|---------|-------|
+| Inventory, equipment | Target world's LevelDB | Default on cross-world transfer |
+| Gamemode, `isOp`, permissions | Target world's LevelDB | Not global across worlds |
+| Saved position (`x`, `y`, `z`) | Target world's LevelDB | Used when entering a world without explicit coords |
+| Connection, skin, identity | `PlayerSession` | Connection lifetime only |
+
+**Login** loads player data from the **default spawn world** only. **Disconnect** saves to the **current** world. **Cross-world transfer** (`/tp <world>`) loads the target world's save by default; optional `--carry inventory` / `--carry position` merge from the source (see [07-cross-worker-transfer.md](./07-cross-worker-transfer.md)).
+
+Implementation: [`PlayerWorldTransfer.cs`](../../../Basalt/Player/PlayerWorldTransfer.cs).
 
 ### World (metadata + lazy state)
 

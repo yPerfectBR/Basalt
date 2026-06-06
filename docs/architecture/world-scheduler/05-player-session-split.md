@@ -71,10 +71,10 @@ public sealed class Player : Entity
 }
 ```
 
-**Gamemode / permissions**: may remain on entity for world-local state, or move to session for global op status. Recommendation:
+**Gamemode / permissions**: **per-world** on the entity (NBT in each world's LevelDB). The session does **not** duplicate op status or permissions.
 
-- `IsOperator`, `Permissions` → **Session** (global)
-- `Gamemode` applied in world → **Entity**, synced from session on spawn
+- `IsOperator`, `Permissions`, `Gamemode` → **Entity** (loaded/saved per world)
+- `PlayerSession` → connection and identity only
 
 ### Server registry
 
