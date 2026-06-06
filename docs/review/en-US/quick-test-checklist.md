@@ -95,6 +95,21 @@ dotnet test --filter PlayerWorldTransfer
 
 ---
 
+## 8. Sample plugins (optional)
+
+| Step | Action | Expected |
+|------|--------|----------|
+| Build | `dotnet build samples/plugins/JoinAnnouncer/JoinAnnouncer.csproj` (or build all) | DLLs in `plugins/` |
+| List | `/plugins` | JoinAnnouncer, SpawnWelcome, BreakGuard, SchedulerSnapshot |
+| Join | Connect | Log `[Plugin:JoinAnnouncer] join user=...` |
+| Spawn | After spawn | Message `[SpawnWelcome] world=... worker=...` |
+| Bedrock | Try breaking bedrock (Y=0) | `[BreakGuard] This block is protected` |
+| Start | Restart server | Log `[Plugin:SchedulerSnapshot] server start ...` and default world snapshot |
+
+Details: [plugin-guide.md](./plugin-guide.md).
+
+---
+
 ## Common issues
 
 | Symptom | Check |

@@ -25,7 +25,8 @@ Guide for developers familiar with the **original Basalt** who want to validate 
 | Doc | Purpose |
 |-----|---------|
 | [quick-test-checklist.md](./quick-test-checklist.md) | ~15 min smoke tests — commands and expected results |
-| [implementation-notes.md](./implementation-notes.md) | Implementation details, phases, files, plugins |
+| [plugin-guide.md](./plugin-guide.md) | Plugins, threads, 4 samples in `samples/plugins/` |
+| [implementation-notes.md](./implementation-notes.md) | Implementation details, phases, files |
 | [../../architecture/world-scheduler/README.md](../../architecture/world-scheduler/README.md) | Full architecture reference (12 documents) |
 
 ---

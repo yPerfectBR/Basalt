@@ -25,7 +25,8 @@ Mundos **dormant** (zero jogadores) não são tickados. O primeiro jogador que e
 | Doc | Para quê |
 |-----|----------|
 | [quick-test-checklist.md](./quick-test-checklist.md) | Smoke tests em ~15 min — comandos e resultados esperados |
-| [implementation-notes.md](./implementation-notes.md) | Detalhes de implementação, fases, arquivos, plugins |
+| [plugin-guide.md](./plugin-guide.md) | Plugins, threads, 4 exemplos em `samples/plugins/` |
+| [implementation-notes.md](./implementation-notes.md) | Detalhes de implementação, fases, arquivos |
 | [../../architecture/world-scheduler/README.md](../../architecture/world-scheduler/README.md) | Referência completa de arquitetura (12 documentos) |
 
 ---

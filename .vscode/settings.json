@@ -1,4 +1,6 @@
 {
+    "dotnet.defaultSolution": "Basalt.sln",
+    "dotnet.completion.showCompletionItemsFromUnimportedNamespaces": true,
     "files.exclude": {
         "**/.git": true,
         "**/.svn": true,
@@ -31,7 +33,9 @@
         "Basalt/.tmp": true,
         "Basalt/Basalt.csproj.lscache": true,
         "plugins/Skyblock/obj": true,
-        "plugins/Skyblock/bin": true
+        "plugins/Skyblock/bin": true,
+        "samples/plugins/**/obj": true,
+        "samples/plugins/**/bin": true
     },
     "hide-files.files": [
         "Basalt/obj",
@@ -60,6 +64,8 @@
         "Basalt/.tmp",
         "Basalt/Basalt.csproj.lscache",
         "plugins/Skyblock/obj",
-        "plugins/Skyblock/bin"
+        "plugins/Skyblock/bin",
+        "samples/plugins/**/obj",
+        "samples/plugins/**/bin"
     ]
 }

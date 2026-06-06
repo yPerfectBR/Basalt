@@ -1,0 +1,21 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Basalt.Samples.Plugins.$(MSBuildProjectName)</RootNamespace>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <BasaltRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../..'))</BasaltRoot>
+    <PluginsOutputDir>$(BasaltRoot)/plugins</PluginsOutputDir>
+  </PropertyGroup>
+
+  <Target Name="CopyPluginToOutput" AfterTargets="Build">
+    <MakeDir Directories="$(PluginsOutputDir)" />
+    <Copy
+      SourceFiles="$(TargetPath)"
+      DestinationFolder="$(PluginsOutputDir)"
+      SkipUnchangedFiles="true" />
+  </Target>
+</Project>
