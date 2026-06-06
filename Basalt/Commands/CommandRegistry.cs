@@ -34,6 +34,7 @@ public class CommandRegistry
         Register(new SummonCommand());
         Register(new TpCommand());
         Register(new PluginsCommand());
+        Register(new WorldSchedulerDebugCommand());
     }
 
     public void Register(Command command)
