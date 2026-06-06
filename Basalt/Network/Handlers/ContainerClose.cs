@@ -29,6 +29,8 @@ public static class ContainerClose
             {
                 openContainer.RemoveViewer(player, false);
             }
+
+            player.FlushClientWorldStateSyncIfPending(force: true);
         }
 
         ContainerClosePacket response = new()

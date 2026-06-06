@@ -1,10 +1,12 @@
 namespace Basalt.Server.Scheduling;
 
 using Basalt.Protocol.Enums;
+using Basalt.Protocol.Nbt;
 using Basalt.Protocol.Packets;
 using Basalt.Protocol.Types;
 using Basalt.Server.Entity.Traits.Types;
 using Basalt.Server.Player;
+using Basalt.Server.Player.Traits;
 using Basalt.Server.Scheduling.Messages;
 using Basalt.Server.World.Dimension;
 using PlayerInstance = Basalt.Server.Player.Player;
@@ -19,22 +21,26 @@ internal static class CrossWorldTransferHandler
         PlayerInstance player,
         WorldInstance targetWorld,
         string targetDimensionId,
-        Vec3f position)
+        PlayerWorldTransfer.PlayerTransform transform,
+        TransferCarryFlags carryFlags,
+        CompoundTag sourceEntityNbt)
     {
         return new PlayerEntitySnapshot
         {
             Username = player.Username,
             Xuid = player.Xuid,
             Uuid = player.Uuid,
-            Position = position,
+            RuntimeId = player.RuntimeId,
+            Position = transform.Position,
+            Pitch = transform.Pitch,
+            Yaw = transform.Yaw,
+            HeadYaw = transform.HeadYaw,
             SourceWorldId = player.Dimension!.World!.Name,
+            SourceDimensionType = player.Dimension.Type,
             TargetWorldId = targetWorld.Name,
             TargetDimensionId = targetDimensionId,
-            Pitch = player.Pitch,
-            Yaw = player.Yaw,
-            HeadYaw = player.HeadYaw,
-            Gamemode = player.Gamemode,
-            EntityNbt = player.WriteToNbt()
+            CarryFlags = carryFlags,
+            SourceEntityNbt = sourceEntityNbt
         };
     }
 
@@ -57,13 +63,21 @@ internal static class CrossWorldTransferHandler
                 sourceWorker.WorkerId);
         }
 
+        PlayerWorldTransfer.SaveToWorld(player, sourceWorld);
+        CompoundTag sourceEntityNbt = player.WriteToNbt();
+        PlayerWorldTransfer.PlayerTransform transform = new(message.Position, message.Pitch, message.Yaw, message.HeadYaw);
+
         PlayerEntitySnapshot snapshot = CaptureSnapshot(
             player,
             message.TargetWorld,
             message.TargetDimensionId,
-            message.Position);
+            transform,
+            message.CarryFlags,
+            sourceEntityNbt);
 
         WorldPlayerPresence.OnPlayerLeftWorld(server, sourceWorld);
+
+        player.GetTrait<PlayerChunkRenderingTrait>()?.FlushClientChunks();
 
         if (player.Dimension is Dimension sourceDimension)
         {
@@ -72,11 +86,6 @@ internal static class CrossWorldTransferHandler
         }
 
         session.ActiveEntity = null;
-
-        if (sourceWorld.PresentPlayerCount == 0)
-        {
-            server.Scheduler.RequestDetach(sourceWorld);
-        }
 
         server.Scheduler.RequestAttach(message.TargetWorld);
 
@@ -122,8 +131,14 @@ internal static class CrossWorldTransferHandler
 
         try
         {
-            PlayerInstance player = new(snapshot.Username, snapshot.Xuid, snapshot.Uuid);
-            player.FromNBT(snapshot.EntityNbt);
+            CompoundTag entityNbt = PlayerWorldTransfer.BuildEntityNbtFromSnapshot(
+                snapshot.SourceEntityNbt,
+                targetWorld,
+                snapshot.Xuid,
+                snapshot.CarryFlags);
+
+            PlayerInstance player = new(snapshot.Username, snapshot.Xuid, snapshot.Uuid, snapshot.RuntimeId);
+            player.FromNBT(entityNbt);
             player.Position = snapshot.Position;
             player.Pitch = snapshot.Pitch;
             player.Yaw = snapshot.Yaw;
@@ -135,10 +150,12 @@ internal static class CrossWorldTransferHandler
             WorldPlayerPresence.OnPlayerEnteredWorld(server, targetWorld);
 
             bool crossWorld = !snapshot.SourceWorldId.Equals(snapshot.TargetWorldId, StringComparison.OrdinalIgnoreCase);
-            player.Teleport(snapshot.Position, targetDimension, forceDimensionChange: crossWorld);
+            bool useDimensionChange = crossWorld && snapshot.SourceDimensionType != targetDimension.Type;
 
             session.ActiveEntity = player;
             session.TransferState = TransferState.Idle;
+
+            player.ResyncAfterWorldTransfer(useDimensionChange);
 
             if (server.Properties.WorldSchedulerDebug)
             {

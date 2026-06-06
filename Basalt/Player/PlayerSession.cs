@@ -7,8 +7,9 @@ using Basalt.RakNet;
 using Basalt.Server.Network;
 
 /// <summary>
-/// Stable server-level player session (connection, identity, permissions).
+/// Stable server-level player session (connection and identity only).
 /// Survives entity despawn during cross-worker transfers.
+/// Game state (inventory, gamemode, permissions, position) lives per-world on the entity and LevelDB.
 /// </summary>
 public sealed class PlayerSession
 {
@@ -27,26 +28,10 @@ public sealed class PlayerSession
 
     public TransferState TransferState { get; set; } = TransferState.Idle;
 
-    public HashSet<string> Permissions { get; } = new(StringComparer.OrdinalIgnoreCase);
-    public bool IsOperator { get; private set; }
+    /// <summary>Inventory/gamemode sync deferred until the client finishes dimension/container teardown.</summary>
+    public bool PendingClientWorldStateSync { get; set; }
 
-    public void SetOperator(bool isOperator)
-    {
-        IsOperator = isOperator;
-        if (isOperator)
-        {
-            Permissions.Add("basalt.op");
-        }
-        else
-        {
-            Permissions.Remove("basalt.op");
-        }
-    }
-
-    public bool HasPermission(string permission)
-    {
-        return Permissions.Contains(permission);
-    }
+    public ulong ClientWorldStateSyncMinTick { get; set; }
 
     public void Send(DataPacket packet)
     {

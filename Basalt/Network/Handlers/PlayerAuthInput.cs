@@ -49,6 +49,8 @@ public static class PlayerAuthInput
                 return;
             }
 
+            player.FlushClientWorldStateSyncIfPending();
+
 #if DEBUG
             if (player.Dimension?.World is global::Basalt.Server.World.World authWorld)
             {

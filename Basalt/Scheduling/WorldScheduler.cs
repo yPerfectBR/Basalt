@@ -239,7 +239,8 @@ public sealed class WorldScheduler : IWorldScheduler
         PlayerSession session,
         WorldInstance targetWorld,
         Dimension targetDimension,
-        Vec3f position)
+        PlayerWorldTransfer.PlayerTransform transform,
+        TransferCarryFlags carryFlags)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(targetWorld);
@@ -267,7 +268,11 @@ public sealed class WorldScheduler : IWorldScheduler
             Session = session,
             TargetWorld = targetWorld,
             TargetDimensionId = targetDimension.Identifier,
-            Position = position
+            Position = transform.Position,
+            Pitch = transform.Pitch,
+            Yaw = transform.Yaw,
+            HeadYaw = transform.HeadYaw,
+            CarryFlags = carryFlags
         });
     }
 }

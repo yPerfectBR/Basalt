@@ -85,6 +85,33 @@ public sealed class ItemStack {
         return descriptor;
     }
 
+    public NetworkItemStackDescriptor ToNetworkItemStackDescriptor()
+    {
+        if (StackSize == 0 || Type.NetworkId == 0)
+        {
+            return new NetworkItemStackDescriptor();
+        }
+
+        int runtimeId = 0;
+        if (Type.BlockType is not null && Type.BlockType.Permutations.Count > 0)
+        {
+            runtimeId = Type.BlockType.Permutations[0].NetworkId;
+        }
+
+        return new NetworkItemStackDescriptor
+        {
+            NetworkId = Type.NetworkId,
+            Count = StackSize,
+            Metadata = Metadata,
+            StackNetworkId = NetworkStackId,
+            BlockRuntimeId = runtimeId,
+            Nbt = GetSerializedNbt(),
+            CanPlaceOn = ExtraData?.CanPlaceOn ?? [],
+            CanDestroy = ExtraData?.CanDestroy ?? [],
+            BlockingTick = ExtraData?.Ticking ?? 0
+        };
+    }
+
     public static ItemStack FromNetworkStack(LegacyItem descriptor)
     {
         ItemType type = ItemType.GetByNetwork(descriptor.NetworkId)

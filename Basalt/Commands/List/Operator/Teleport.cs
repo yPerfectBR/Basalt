@@ -2,6 +2,7 @@ namespace Basalt.Server.Commands.List.Operator;
 
 using Basalt.Protocol.Enums;
 using Basalt.Server.Commands;
+using Basalt.Server.Player;
 using Basalt.Server.Scheduling;
 using Vec3f = Basalt.Protocol.Types.Vec3f;
 using Basalt.Server.World.Dimension;
@@ -35,7 +36,15 @@ public class TpCommand : Command
     }
 
     public override string? GetHelpMessage() =>
-        "§cUsage: /tp <world> | /tp <destination> [dimension] | /tp <x> <y> <z> [dimension] | /tp <victim> <destination> [dimension] | /tp <victim> <x> <y> <z> [dimension]";
+        """
+        §cUsage:
+        §7/tp <world> [--carry inventory] [--carry position]
+        §7/tp <destination> [dimension] | /tp <x> <y> <z> [dimension]
+        §7/tp <victim> <destination> [dimension] | /tp <victim> <x> <y> <z> [dimension]
+        §7Cross-world default: target world's saved state (position from LevelDB or spawn).
+        §7--carry inventory: merge inventory from source world.
+        §7--carry position: use current position instead of target save.
+        """;
 
     public override CommandResult? ExecuteManual(CommandExecutionState state, string[] tokens, int argumentOffset)
     {
@@ -43,11 +52,16 @@ public class TpCommand : Command
         Player? executor = GetExecutor(state);
         WorldInstance contextWorld = executor?.Dimension?.World ?? state.Server.GetWorld();
 
+        if (!TryParseCarryFlags(ref args, out TransferCarryFlags carryFlags, out CommandResult? carryError))
+        {
+            return carryError;
+        }
+
         StripTrailingDimension(contextWorld, args, out args, out string? explicitDimensionId);
 
         if (args.Length >= 4 && PositionEnum.Parse(args, 1, new Vec3f(), out _))
         {
-            return TeleportVictimsToPosition(state, executor, contextWorld, explicitDimensionId, args[0], args, positionStart: 1);
+            return TeleportVictimsToPosition(state, executor, contextWorld, explicitDimensionId, args[0], args, positionStart: 1, carryFlags);
         }
 
         if (args.Length == 3 && TryParsePosition(executor, args, 0, null, out Vec3f selfCoords))
@@ -59,12 +73,13 @@ public class TpCommand : Command
             }
 
             Dimension? dimension = ResolveCoordsDimension(contextWorld, executor!, explicitDimensionId);
-            return TeleportPlayers(state, [executor!], selfCoords, dimension, destinationName: null);
+            PlayerWorldTransfer.PlayerTransform transform = new(selfCoords, executor!.Pitch, executor.Yaw, executor.HeadYaw);
+            return TeleportPlayers(state, [executor!], transform, dimension, destinationName: null, carryFlags, explicitCoordinates: true);
         }
 
         if (args.Length == 2)
         {
-            return TeleportVictimsToPlayer(state, executor, contextWorld, explicitDimensionId, args[0], args[1]);
+            return TeleportVictimsToPlayer(state, executor, contextWorld, explicitDimensionId, args[0], args[1], carryFlags);
         }
 
         if (args.Length == 1)
@@ -77,8 +92,13 @@ public class TpCommand : Command
                     return executorError;
                 }
 
-                Vec3f position = executor!.Position;
-                return TeleportPlayers(state, [executor!], position, targetDimension, destinationName: targetWorld.Name);
+                PlayerWorldTransfer.PlayerTransform transform = PlayerWorldTransfer.ResolveDestinationTransform(
+                    executor!,
+                    targetWorld,
+                    explicitCoords: null,
+                    carryFlags);
+
+                return TeleportPlayers(state, [executor!], transform, targetDimension, destinationName: targetWorld.Name, carryFlags, explicitCoordinates: false);
             }
 
             if (worldError is not null)
@@ -86,10 +106,74 @@ public class TpCommand : Command
                 return worldError;
             }
 
-            return TeleportExecutorToPlayer(state, executor, contextWorld, explicitDimensionId, args[0]);
+            return TeleportExecutorToPlayer(state, executor, contextWorld, explicitDimensionId, args[0], carryFlags);
         }
 
         return CommandResult.Message(GetHelpMessage()!, false);
+    }
+
+    static bool TryParseCarryFlags(ref string[] args, out TransferCarryFlags carryFlags, out CommandResult? error)
+    {
+        carryFlags = TransferCarryFlags.None;
+        error = null;
+        List<string> remaining = [];
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (!args[i].Equals("--carry", StringComparison.OrdinalIgnoreCase))
+            {
+                remaining.Add(args[i]);
+                continue;
+            }
+
+            if (i + 1 >= args.Length)
+            {
+                error = CommandResult.Message("§c--carry requires a value (inventory, position, or inventory,position).", false);
+                return false;
+            }
+
+            string value = args[++i];
+            if (!TryParseCarryValues(value, out TransferCarryFlags parsed, out string? parseError))
+            {
+                error = CommandResult.Message($"§c{parseError}", false);
+                return false;
+            }
+
+            carryFlags |= parsed;
+        }
+
+        args = remaining.ToArray();
+        return true;
+    }
+
+    static bool TryParseCarryValues(string value, out TransferCarryFlags flags, out string? error)
+    {
+        flags = TransferCarryFlags.None;
+        error = null;
+
+        foreach (string part in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            switch (part.ToLowerInvariant())
+            {
+                case "inventory":
+                    flags |= TransferCarryFlags.Inventory;
+                    break;
+                case "position":
+                    flags |= TransferCarryFlags.Position;
+                    break;
+                default:
+                    error = $"Unknown carry flag '{part}'. Use inventory and/or position.";
+                    return false;
+            }
+        }
+
+        if (flags == TransferCarryFlags.None)
+        {
+            error = "At least one carry flag is required after --carry.";
+            return false;
+        }
+
+        return true;
     }
 
     static CommandResult TeleportExecutorToPlayer(
@@ -97,7 +181,8 @@ public class TpCommand : Command
         Player? executor,
         WorldInstance contextWorld,
         string? explicitDimensionId,
-        string destinationToken)
+        string destinationToken,
+        TransferCarryFlags carryFlags)
     {
         CommandResult? executorError = RequireExecutor(executor);
         if (executorError is not null)
@@ -111,7 +196,8 @@ public class TpCommand : Command
         }
 
         Dimension? dimension = ResolvePlayerDestinationDimension(contextWorld, destination, explicitDimensionId);
-        return TeleportPlayers(state, [executor!], destination.Position, dimension, destinationName: destination.Username);
+        PlayerWorldTransfer.PlayerTransform transform = new(destination.Position, destination.Pitch, destination.Yaw, destination.HeadYaw);
+        return TeleportPlayers(state, [executor!], transform, dimension, destinationName: destination.Username, carryFlags, explicitCoordinates: true);
     }
 
     static CommandResult TeleportVictimsToPlayer(
@@ -120,7 +206,8 @@ public class TpCommand : Command
         WorldInstance contextWorld,
         string? explicitDimensionId,
         string victimToken,
-        string destinationToken)
+        string destinationToken,
+        TransferCarryFlags carryFlags)
     {
         if (!TryGetPlayers(state, executor, victimToken, out List<Player> victims, out CommandResult? victimError))
         {
@@ -133,7 +220,8 @@ public class TpCommand : Command
         }
 
         Dimension? dimension = ResolvePlayerDestinationDimension(contextWorld, destination, explicitDimensionId);
-        return TeleportPlayers(state, victims, destination.Position, dimension, destinationName: destination.Username);
+        PlayerWorldTransfer.PlayerTransform transform = new(destination.Position, destination.Pitch, destination.Yaw, destination.HeadYaw);
+        return TeleportPlayers(state, victims, transform, dimension, destinationName: destination.Username, carryFlags, explicitCoordinates: true);
     }
 
     static CommandResult TeleportVictimsToPosition(
@@ -143,7 +231,8 @@ public class TpCommand : Command
         string? explicitDimensionId,
         string victimToken,
         string[] args,
-        int positionStart)
+        int positionStart,
+        TransferCarryFlags carryFlags)
     {
         if (!TryGetPlayers(state, executor, victimToken, out List<Player> victims, out CommandResult? victimError))
         {
@@ -157,7 +246,8 @@ public class TpCommand : Command
         }
 
         Dimension? dimension = ResolveCoordsDimension(contextWorld, executor ?? originPlayer, explicitDimensionId);
-        return TeleportPlayers(state, victims, position, dimension, destinationName: null);
+        PlayerWorldTransfer.PlayerTransform transform = new(position, originPlayer.Pitch, originPlayer.Yaw, originPlayer.HeadYaw);
+        return TeleportPlayers(state, victims, transform, dimension, destinationName: null, carryFlags, explicitCoordinates: true);
     }
 
     static Player? GetExecutor(CommandExecutionState state) =>
@@ -329,9 +419,11 @@ public class TpCommand : Command
     static CommandResult TeleportPlayers(
         CommandExecutionState state,
         List<Player> players,
-        Vec3f position,
+        PlayerWorldTransfer.PlayerTransform transform,
         Dimension? dimension,
-        string? destinationName)
+        string? destinationName,
+        TransferCarryFlags carryFlags,
+        bool explicitCoordinates)
     {
         Player? executor = GetExecutor(state);
         List<string> messages = [];
@@ -348,45 +440,55 @@ public class TpCommand : Command
                 }
 
                 WorldInstance? sourceWorld = player.Dimension?.World;
-                if (sourceWorld is not null && NeedsCrossWorkerTransfer(state.Server, sourceWorld, targetWorld))
+                PlayerWorldTransfer.PlayerTransform resolvedTransform = explicitCoordinates || sourceWorld is null
+                    ? transform
+                    : PlayerWorldTransfer.ResolveDestinationTransform(player, targetWorld, explicitCoords: null, carryFlags);
+
+                if (sourceWorld is not null && PlayerWorldTransfer.IsCrossWorld(sourceWorld, targetWorld))
                 {
-                    if (player.Session is null)
+                    if (NeedsCrossWorkerTransfer(state.Server, sourceWorld, targetWorld))
                     {
-                        throw new InvalidOperationException("Player has no session.");
+                        if (player.Session is null)
+                        {
+                            throw new InvalidOperationException("Player has no session.");
+                        }
+
+                        WorldScheduler scheduler = (WorldScheduler)state.Server.Scheduler;
+                        scheduler.BeginCrossWorldTransfer(player.Session, targetWorld, dimension, resolvedTransform, carryFlags);
+                        successCount++;
+
+                        string label = destinationName ?? targetWorld.Name;
+                        if (ReferenceEquals(executor, player))
+                        {
+                            messages.Add($"§7Transferindo para §a{label}§7.");
+                        }
+                        else
+                        {
+                            messages.Add($"§7Transferindo §a{player.Username} §7para §a{label}§7.");
+                            player.SendMessage($"§7Transferindo para §a{label}§7.");
+                        }
+
+                        continue;
                     }
 
-                    WorldScheduler scheduler = (WorldScheduler)state.Server.Scheduler;
-                    scheduler.BeginCrossWorldTransfer(player.Session, targetWorld, dimension, position);
+                    PlayerWorldTransfer.ApplySameWorker(state.Server, player, targetWorld, dimension, resolvedTransform, carryFlags);
                     successCount++;
 
-                    string label = destinationName ?? targetWorld.Name;
+                    string sameWorkerLabel = destinationName ?? targetWorld.Name;
                     if (ReferenceEquals(executor, player))
                     {
-                        messages.Add($"§7Transferindo para §a{label}§7.");
+                        messages.Add($"§7Transferindo para §a{sameWorkerLabel}§7.");
                     }
                     else
                     {
-                        messages.Add($"§7Transferindo §a{player.Username} §7para §a{label}§7.");
-                        player.SendMessage($"§7Transferindo para §a{label}§7.");
+                        messages.Add($"§7Transferindo §a{player.Username} §7para §a{sameWorkerLabel}§7.");
+                        player.SendMessage($"§7Transferindo para §a{sameWorkerLabel}§7.");
                     }
 
                     continue;
                 }
 
-                WorldInstance? previousWorld = player.Dimension?.World;
-                player.Teleport(position, dimension);
-                WorldInstance? newWorld = player.Dimension?.World;
-
-                if (previousWorld is not null && !ReferenceEquals(previousWorld, newWorld))
-                {
-                    WorldPlayerPresence.OnPlayerLeftWorld(state.Server, previousWorld);
-                }
-
-                if (newWorld is not null && !ReferenceEquals(newWorld, previousWorld))
-                {
-                    WorldPlayerPresence.OnPlayerEnteredWorld(state.Server, newWorld);
-                }
-
+                player.Teleport(resolvedTransform.Position, dimension);
                 successCount++;
 
                 if (ReferenceEquals(executor, player))
@@ -397,7 +499,7 @@ public class TpCommand : Command
                     }
                     else
                     {
-                        messages.Add($"§7Teleported you to §a{position.X:0.##} {position.Y:0.##} {position.Z:0.##}§7.");
+                        messages.Add($"§7Teleported you to §a{resolvedTransform.Position.X:0.##} {resolvedTransform.Position.Y:0.##} {resolvedTransform.Position.Z:0.##}§7.");
                     }
                 }
                 else if (destinationName is not null)
@@ -407,8 +509,8 @@ public class TpCommand : Command
                 }
                 else
                 {
-                    messages.Add($"§7Teleported §a{player.Username} §7to §a{position.X:0.##} {position.Y:0.##} {position.Z:0.##}§7.");
-                    player.SendMessage($"§7You were teleported to §a{position.X:0.##} {position.Y:0.##} {position.Z:0.##}§7.");
+                    messages.Add($"§7Teleported §a{player.Username} §7to §a{resolvedTransform.Position.X:0.##} {resolvedTransform.Position.Y:0.##} {resolvedTransform.Position.Z:0.##}§7.");
+                    player.SendMessage($"§7You were teleported to §a{resolvedTransform.Position.X:0.##} {resolvedTransform.Position.Y:0.##} {resolvedTransform.Position.Z:0.##}§7.");
                 }
             }
             catch (Exception exception)

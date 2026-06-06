@@ -13,4 +13,8 @@ public sealed class PrepareTransferMessage : IWorldMessage
     public required WorldInstance TargetWorld { get; init; }
     public required string TargetDimensionId { get; init; }
     public required Vec3f Position { get; init; }
+    public float Pitch { get; init; }
+    public float Yaw { get; init; }
+    public float HeadYaw { get; init; }
+    public TransferCarryFlags CarryFlags { get; init; }
 }

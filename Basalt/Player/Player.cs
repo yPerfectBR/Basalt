@@ -56,8 +56,8 @@ public sealed class Player : Entity.Entity
         }
     }
 
-    public Player(string username, string xuid, Guid uuid) :
-        base(EntityIdentifier.Player.ToIdentifierString())
+    public Player(string username, string xuid, Guid uuid, ulong? runtimeId = null) :
+        base(EntityIdentifier.Player.ToIdentifierString(), runtimeId)
     {
         Username = username;
         Xuid = xuid;
@@ -308,6 +308,95 @@ public sealed class Player : Entity.Entity
         Session?.Disconnect(reason);
     }
 
+    public void SyncGamemodeToClient()
+    {
+        if (Session is null)
+        {
+            return;
+        }
+
+        Session.Send(new SetPlayerGameTypePacket { GameType = Gamemode });
+        Session.Send(CreateAbilitiesPacket());
+    }
+
+    /// <summary>
+    /// Pushes per-world entity state to the client after login or world transfer.
+    /// </summary>
+    public void SyncClientWorldState()
+    {
+        if (Session is null)
+        {
+            return;
+        }
+
+        SetSpawned(true);
+
+        SyncGamemodeToClient();
+        SyncPermissions();
+
+        openedContainers.Clear();
+
+        EntityInventoryTrait? inventory = GetTrait<EntityInventoryTrait>();
+        if (inventory is not null)
+        {
+            EnsureContainerViewer(this, inventory.Container, inventory.Container.Identifier ?? 0);
+            inventory.SyncToPlayer(this);
+            inventory.SyncHeldItemToClient(this);
+        }
+
+        PlayerCursorTrait? cursor = GetTrait<PlayerCursorTrait>();
+        if (cursor is not null)
+        {
+            EnsureContainerViewer(this, cursor.Container, cursor.Container.Identifier ?? 124);
+            cursor.Container.Update();
+        }
+
+        SendAttributes();
+    }
+
+    /// <summary>
+    /// Defers inventory/gamemode sync until the client acks dimension change or closes stale containers.
+    /// </summary>
+    public void ScheduleClientWorldStateSync()
+    {
+        if (Session is null)
+        {
+            return;
+        }
+
+        ulong tick = Dimension?.World is Tickable tickable ? tickable.TickValue : 0;
+        Session.PendingClientWorldStateSync = true;
+        Session.ClientWorldStateSyncMinTick = tick + 5;
+    }
+
+    public void FlushClientWorldStateSyncIfPending(bool force = false)
+    {
+        if (Session?.PendingClientWorldStateSync != true)
+        {
+            return;
+        }
+
+        ulong tick = Dimension?.World is Tickable tickable ? tickable.TickValue : 0;
+        if (!force && tick < Session.ClientWorldStateSyncMinTick)
+        {
+            return;
+        }
+
+        Session.PendingClientWorldStateSync = false;
+        SyncClientWorldState();
+    }
+
+    static void EnsureContainerViewer(Player player, Containers.Container container, int windowId)
+    {
+        if (container.occupants.ContainsKey(player))
+        {
+            return;
+        }
+
+        container.occupants[player] = windowId;
+        player.RegisterOpenContainer(windowId, container);
+    }
+
     public void SetSpawned(bool spawned)
     {
         Spawned = true;
@@ -381,6 +470,31 @@ public sealed class Player : Entity.Entity
 
         GetTrait<PlayerChunkRenderingTrait>()?.StartChunkLoad();
         SendAttributes();
+    }
+
+    /// <summary>
+    /// Re-syncs the client after a cross-worker world transfer (same flow essentials as SetLocalPlayerAsInitialized).
+    /// Caller must set <see cref="PlayerSession.ActiveEntity"/> and <see cref="PlayerSession.TransferState"/> to Idle first.
+    /// </summary>
+    /// <param name="useDimensionChange">
+    /// When true, sends ChangeDimension (required when dimension type changes). Same-type cross-world transfers
+    /// use MovePlayer instead to avoid the client getting stuck on "building terrain".
+    /// </param>
+    public void ResyncAfterWorldTransfer(bool useDimensionChange)
+    {
+        Dimension targetDimension = Dimension ??
+            throw new InvalidOperationException("Player must have a dimension to resync after transfer.");
+
+        ulong tick = targetDimension.World is Tickable tickable ? tickable.TickValue : 0;
+
+        Send(CreateActorDataPacket(tick));
+        SendAttributes();
+
+        Teleport(Position, targetDimension, forceDimensionChange: useDimensionChange);
+
+        GetTrait<PlayerChunkRenderingTrait>()?.ForceReloadViewDistance();
+
+        ScheduleClientWorldStateSync();
     }
 
     public void RegisterOpenContainer(int windowId, Container container)

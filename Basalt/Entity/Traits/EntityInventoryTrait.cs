@@ -270,6 +270,23 @@ public sealed class EntityInventoryTrait : EntityTrait
 
         player.Send(packet);
     }
+
+    public void SyncHeldItemToClient(Player player)
+    {
+        byte hotBarSlot = SelectedSlot < 9 ? (byte)SelectedSlot : (byte)0;
+        ItemStack? held = GetHeldItem();
+
+        MobEquipmentPacket packet = new()
+        {
+            EntityRuntimeId = player.RuntimeId,
+            InventorySlot = (byte)SelectedSlot,
+            HotBarSlot = hotBarSlot,
+            WindowId = 0,
+            NewItem = held?.ToNetworkItemStackDescriptor() ?? new NetworkItemStackDescriptor()
+        };
+
+        player.Send(packet);
+    }
 }
 
 

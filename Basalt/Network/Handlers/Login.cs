@@ -149,7 +149,6 @@ public static class Login
             Skin = Skin.FromClientData(clientData),
             ActiveEntity = player
         };
-        session.SetOperator(isOperator);
         player.Session = session;
         server.Sessions[connection] = session;
 
