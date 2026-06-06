@@ -1,8 +1,10 @@
-# Quick Test Checklist
+# Checklist rápido de testes
 
 Smoke tests diretos para validar o branch `world-scheduler`. Tempo estimado: **~15 minutos**.
 
-Config de referência: [`server.properties`](../../server.properties) com scheduler habilitado e `world_copy` carregado.
+Config de referência: [`server.properties`](../../../server.properties) com scheduler habilitado e `world_copy` carregado.
+
+[English version](../en-US/quick-test-checklist.md)
 
 ---
 
@@ -43,7 +45,7 @@ Workers ociosos: TPS ~20.0, WorkMs e LagMs ~0.
 
 ---
 
-## 4. Cross-world transfer
+## 4. Transfer cross-world
 
 | Passo | Comando | Esperado |
 |-------|---------|----------|

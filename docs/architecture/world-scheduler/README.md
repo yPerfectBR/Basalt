@@ -92,7 +92,7 @@ sequenceDiagram
 | [10-config-reference.md](./10-config-reference.md) | Config reference | server.properties + per-world JSON |
 | [11-agent-implementation-guide.md](./11-agent-implementation-guide.md) | Agent guide | Rules, PR template, checklists |
 
-**Human review / smoke tests:** [docs/review/](../../review/README.md) — checklist resumido para quem vem do Basalt original.
+**Human review / smoke tests:** [docs/review/](../../review/README.md) — escolha [pt-br](../../review/pt-br/README.md) ou [en-US](../../review/en-US/README.md).
 
 ---
 
@@ -121,7 +121,7 @@ sequenceDiagram
 
 **Do not skip phases.** Phase 3 requires Phase 1 and Phase 2.
 
-**Smoke tests (human reviewers):** [docs/review/quick-test-checklist.md](../../review/quick-test-checklist.md)
+**Smoke tests (human reviewers):** [pt-br checklist](../../review/pt-br/quick-test-checklist.md) · [en-US checklist](../../review/en-US/quick-test-checklist.md)
 
 ---
 

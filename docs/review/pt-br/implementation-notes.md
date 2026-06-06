@@ -1,21 +1,23 @@
-# Implementation Notes — World Scheduler
+# Notas de implementação — World Scheduler
 
-Notas de implementação para reviewers e mantenedores. Para smoke tests rápidos, use [quick-test-checklist.md](./quick-test-checklist.md).
+Notas para reviewers e mantenedores. Para smoke tests rápidos, use [quick-test-checklist.md](./quick-test-checklist.md).
+
+[English version](../en-US/implementation-notes.md)
 
 ---
 
 ## Fases (0–5) — todas concluídas
 
-| Phase | Foco | Status |
-|-------|------|--------|
-| 0 | Stubs, `WorldRegistration`, loader `world.json` | Done |
-| 1 | Marshaling na tick thread, tick só de mundos ativos | Done |
-| 2 | `PlayerSession` vs entidade, `Server.Sessions` | Done |
-| 3 | `WorldWorkerPool`, PickWorker, attach/detach | Done |
-| 4 | Transfer cross-worker, `/tp world_copy`, snapshot | Done |
-| 5 | Métricas, `/worldscheduler`, `RunOnWorldThread`, `Emit` affinity | Done |
+| Fase | Foco | Status |
+|------|------|--------|
+| 0 | Stubs, `WorldRegistration`, loader `world.json` | Concluída |
+| 1 | Marshaling na tick thread, tick só de mundos ativos | Concluída |
+| 2 | `PlayerSession` vs entidade, `Server.Sessions` | Concluída |
+| 3 | `WorldWorkerPool`, PickWorker, attach/detach | Concluída |
+| 4 | Transfer cross-worker, `/tp world_copy`, snapshot | Concluída |
+| 5 | Métricas, `/worldscheduler`, `RunOnWorldThread`, afinidade `Emit` | Concluída |
 
-Detalhe por fase: [../architecture/world-scheduler/08-phased-implementation.md](../architecture/world-scheduler/08-phased-implementation.md).
+Detalhe por fase: [../../architecture/world-scheduler/08-phased-implementation.md](../../architecture/world-scheduler/08-phased-implementation.md).
 
 ---
 
@@ -39,7 +41,7 @@ Detalhe por fase: [../architecture/world-scheduler/08-phased-implementation.md](
 - Flags `--carry inventory|position` no `/tp`.
 - Estado default: save do **mundo destino** (inventário isolado por world).
 
-Ver [../architecture/world-scheduler/07-cross-worker-transfer.md](../architecture/world-scheduler/07-cross-worker-transfer.md).
+Ver [../../architecture/world-scheduler/07-cross-worker-transfer.md](../../architecture/world-scheduler/07-cross-worker-transfer.md).
 
 ### Plugins (Phase 5)
 
@@ -74,7 +76,7 @@ flowchart LR
     W1 --> Tick1[world.Tick]
 ```
 
-Invariants completos: [../architecture/world-scheduler/02-core-concepts.md](../architecture/world-scheduler/02-core-concepts.md).
+Invariants completos: [../../architecture/world-scheduler/02-core-concepts.md](../../architecture/world-scheduler/02-core-concepts.md).
 
 ---
 
@@ -98,7 +100,7 @@ Invariants completos: [../architecture/world-scheduler/02-core-concepts.md](../a
 
 ## Configuração
 
-Propriedades: [../architecture/world-scheduler/10-config-reference.md](../architecture/world-scheduler/10-config-reference.md).
+Propriedades: [../../architecture/world-scheduler/10-config-reference.md](../../architecture/world-scheduler/10-config-reference.md).
 
 Per-world JSON (`worlds/{id}/world.json`):
 
@@ -115,9 +117,9 @@ Per-world JSON (`worlds/{id}/world.json`):
 
 | Tópico | Doc |
 |--------|-----|
-| Visão geral | [00-overview.md](../architecture/world-scheduler/00-overview.md) |
-| Estado atual | [01-current-state.md](../architecture/world-scheduler/01-current-state.md) |
-| Session split | [05-player-session-split.md](../architecture/world-scheduler/05-player-session-split.md) |
-| Packet routing | [06-packet-routing.md](../architecture/world-scheduler/06-packet-routing.md) |
-| Testes automatizados | [09-testing.md](../architecture/world-scheduler/09-testing.md) |
-| Agent guide | [11-agent-implementation-guide.md](../architecture/world-scheduler/11-agent-implementation-guide.md) |
+| Visão geral | [00-overview.md](../../architecture/world-scheduler/00-overview.md) |
+| Estado atual | [01-current-state.md](../../architecture/world-scheduler/01-current-state.md) |
+| Session split | [05-player-session-split.md](../../architecture/world-scheduler/05-player-session-split.md) |
+| Packet routing | [06-packet-routing.md](../../architecture/world-scheduler/06-packet-routing.md) |
+| Testes automatizados | [09-testing.md](../../architecture/world-scheduler/09-testing.md) |
+| Agent guide | [11-agent-implementation-guide.md](../../architecture/world-scheduler/11-agent-implementation-guide.md) |

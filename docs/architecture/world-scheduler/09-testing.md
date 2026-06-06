@@ -2,7 +2,7 @@
 
 Test matrix per phase: automated tests, manual verification, regression, and stress scenarios.
 
-**Smoke tests rápidos (reviewers):** [docs/review/quick-test-checklist.md](../../review/quick-test-checklist.md) — checklist resumido com comandos e resultados esperados (~15 min). Checklists manuais abaixo permanecem como referência detalhada por fase.
+**Smoke tests rápidos (reviewers):** [pt-br](../../review/pt-br/quick-test-checklist.md) · [en-US](../../review/en-US/quick-test-checklist.md) — checklist resumido (~15 min). Checklists manuais abaixo permanecem como referência detalhada por fase.
 
 Suggested test project: `tests/Basalt.Tests/` (xUnit or NUnit). Create in Phase 1.
 
