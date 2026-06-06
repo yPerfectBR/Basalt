@@ -30,6 +30,12 @@ public sealed class WorldWorker
 
     internal int PendingMessageCount => _inbox.Count;
 
+    /// <summary>Managed thread id of the worker loop (for tests).</summary>
+    internal int WorkerThreadId { get; private set; }
+
+    /// <summary>Thread that last ran a RunOnWorldThread action (for tests).</summary>
+    internal int LastActionThreadId { get; private set; }
+
     public WorldWorker(int workerId, Server server)
     {
         WorkerId = workerId;
@@ -93,9 +99,23 @@ public sealed class WorldWorker
         _inbox.Enqueue(message);
     }
 
+    internal bool IsCurrentThread()
+    {
+#if DEBUG
+        if (ThreadGuard.CurrentWorkerId == WorkerId)
+        {
+            return true;
+        }
+#endif
+
+        return WorkerThreadId != 0
+            && Thread.CurrentThread.ManagedThreadId == WorkerThreadId;
+    }
+
     void WorkerLoop(CancellationToken token)
     {
         Thread.CurrentThread.Name = $"world-worker-{WorkerId}";
+        WorkerThreadId = Thread.CurrentThread.ManagedThreadId;
 
         while (!token.IsCancellationRequested)
         {
@@ -224,6 +244,7 @@ public sealed class WorldWorker
             DetachWorldMessage => 0,
             AttachWorldMessage => 1,
             CompleteTransferMessage => 2,
+            RunOnWorldThreadMessage => 3,
             PrepareTransferMessage => 3,
             ProcessDisconnectMessage => 4,
             ProcessPacketMessage => 5,
@@ -258,6 +279,25 @@ public sealed class WorldWorker
             case CompleteTransferMessage completeMessage:
                 CrossWorldTransferHandler.HandleCompleteTransfer(_server, this, completeMessage);
                 break;
+
+            case RunOnWorldThreadMessage runMessage:
+                HandleRunOnWorldThread(runMessage);
+                break;
+        }
+    }
+
+    void HandleRunOnWorldThread(RunOnWorldThreadMessage message)
+    {
+        LastActionThreadId = Thread.CurrentThread.ManagedThreadId;
+        try
+        {
+            message.Action();
+            message.Completion?.TrySetResult(null);
+        }
+        catch (Exception exception)
+        {
+            message.Completion?.TrySetException(exception);
+            throw;
         }
     }
 

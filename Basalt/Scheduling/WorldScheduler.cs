@@ -104,6 +104,30 @@ public sealed class WorldScheduler : IWorldScheduler
     {
     }
 
+    public void RunOnWorldThread(WorldInstance world, Action action)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(action);
+
+        EnsureWorldRouted(world);
+        int workerId = world.AttachedWorkerId ?? PickWorker(world.Registration);
+        WorldWorker worker = _pool.GetWorker(workerId);
+
+        if (worker.IsCurrentThread())
+        {
+            action();
+            return;
+        }
+
+        TaskCompletionSource<object?> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        worker.Enqueue(new RunOnWorldThreadMessage
+        {
+            Action = action,
+            Completion = completion
+        });
+        completion.Task.GetAwaiter().GetResult();
+    }
+
     internal int PickWorker(WorldRegistration registration)
     {
         if (registration.PreferredWorker is int preferred)

@@ -15,6 +15,7 @@ public sealed class SingleThreadScheduler : IWorldScheduler
 
     private readonly Server _server;
     private readonly ConcurrentQueue<IWorldMessage> _mainQueue = new();
+    private int _simulationThreadId;
 
     public SingleThreadScheduler(Server server)
     {
@@ -87,9 +88,57 @@ public sealed class SingleThreadScheduler : IWorldScheduler
         });
     }
 
+    public void RunOnWorldThread(WorldInstance world, Action action)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(action);
+
+        if (world.AttachedWorkerId is null)
+        {
+            world.AttachedWorkerId = 0;
+        }
+
+        if (IsSimulationThread())
+        {
+            action();
+            return;
+        }
+
+        TaskCompletionSource<object?> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _mainQueue.Enqueue(new RunOnWorldThreadMessage
+        {
+            Action = action,
+            Completion = completion
+        });
+
+        while (!completion.Task.IsCompleted)
+        {
+            DrainMainQueue(int.MaxValue);
+            if (!completion.Task.IsCompleted && _mainQueue.IsEmpty)
+            {
+                Thread.Sleep(1);
+            }
+        }
+
+        completion.Task.GetAwaiter().GetResult();
+    }
+
     public void DrainMainQueue()
     {
         DrainMainQueue(MaxMessagesPerDrain);
+    }
+
+    bool IsSimulationThread()
+    {
+#if DEBUG
+        if (ThreadGuard.CurrentWorkerId == 0)
+        {
+            return true;
+        }
+#endif
+
+        return _simulationThreadId != 0
+            && Thread.CurrentThread.ManagedThreadId == _simulationThreadId;
     }
 
     void DrainMainQueue(int maxMessages)
@@ -98,6 +147,7 @@ public sealed class SingleThreadScheduler : IWorldScheduler
         ThreadGuard.CurrentWorkerId = 0;
 #endif
 
+        _simulationThreadId = Thread.CurrentThread.ManagedThreadId;
         int processed = 0;
         while (processed < maxMessages && _mainQueue.TryDequeue(out IWorldMessage? message))
         {
@@ -108,6 +158,10 @@ public sealed class SingleThreadScheduler : IWorldScheduler
 
                 switch (message)
                 {
+                    case RunOnWorldThreadMessage runMessage:
+                        HandleRunOnWorldThread(runMessage);
+                        break;
+
                     case ProcessPacketMessage packetMessage:
                         if (_server.Properties.WorldSchedulerDebug)
                         {
@@ -139,6 +193,20 @@ public sealed class SingleThreadScheduler : IWorldScheduler
             {
                 Logger.Warn($"Scheduler message error: {exception.Message}");
             }
+        }
+    }
+
+    static void HandleRunOnWorldThread(RunOnWorldThreadMessage message)
+    {
+        try
+        {
+            message.Action();
+            message.Completion?.TrySetResult(null);
+        }
+        catch (Exception exception)
+        {
+            message.Completion?.TrySetException(exception);
+            throw;
         }
     }
 }

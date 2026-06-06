@@ -38,4 +38,10 @@ public interface IWorldScheduler
     /// Processes queued messages on the simulation thread. Called from <see cref="Server.Tick"/>.
     /// </summary>
     void DrainMainQueue();
+
+    /// <summary>
+    /// Runs an action on the simulation thread that owns the given world.
+    /// Blocks the caller until the action completes when invoked from another thread.
+    /// </summary>
+    void RunOnWorldThread(WorldInstance world, Action action);
 }
