@@ -140,7 +140,11 @@ public sealed class WorldSchedulerTests
         Assert.Equal(1, world.PresentPlayerCount);
         Assert.True(world.IsAttached);
         Assert.NotNull(world.AttachedWorkerId);
-        Assert.Equal(0, world.AttachedWorkerId);
+        Assert.Contains(world.AttachedWorkerId.Value, world.Registration.AllowedWorkers);
+
+        WorldScheduler scheduler = TestServerFactory.RequireWorldScheduler(server);
+        TestServerFactory.DrainAllWorkers(scheduler, rounds: 5);
+        Assert.True(world.IsAttached);
     }
 
     [Fact]

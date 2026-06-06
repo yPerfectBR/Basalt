@@ -90,9 +90,9 @@ public sealed class CrossWorkerTransferTests
         TestServerFactory.DrainAllWorkers(scheduler, rounds: 5);
 
         Dimension targetDimension = target.GetDimension(DimensionType.Overworld)!;
-        Vec3f destination = new() { X = 8, Y = 64, Z = 8 };
+        PlayerWorldTransfer.PlayerTransform transform = new(new Vec3f { X = 8, Y = 64, Z = 8 }, player.Pitch, player.Yaw, player.HeadYaw);
 
-        scheduler.BeginCrossWorldTransfer(session, target, targetDimension, destination);
+        scheduler.BeginCrossWorldTransfer(session, target, targetDimension, transform, TransferCarryFlags.None);
         TestServerFactory.DrainAllWorkers(scheduler);
 
         Assert.Equal(TransferState.Idle, session.TransferState);
@@ -104,7 +104,7 @@ public sealed class CrossWorkerTransferTests
     }
 
     [Fact]
-    public void SameWorkerTransfer_SkipsSnapshotProtocol()
+    public void SameWorkerCrossWorld_UsesPerWorldTransferWithoutSnapshotProtocol()
     {
         Server server = TestServerFactory.CreateMultiWorkerServer();
         WorldScheduler scheduler = TestServerFactory.RequireWorldScheduler(server);
@@ -128,10 +128,10 @@ public sealed class CrossWorkerTransferTests
         Dimension sourceDimension = source.GetDimension(DimensionType.Overworld)!;
         WorldPlayerPresence.OnPlayerEnteredWorld(server, source);
         player.Spawn(sourceDimension, new EntitySpawnOptions(InitialSpawn: true));
-        WorldPlayerPresence.OnPlayerEnteredWorld(server, target);
 
         Dimension targetDimension = target.GetDimension(DimensionType.Overworld)!;
-        player.Teleport(new Vec3f { X = 1, Y = 64, Z = 1 }, targetDimension);
+        PlayerWorldTransfer.PlayerTransform transform = new(new Vec3f { X = 1, Y = 64, Z = 1 }, player.Pitch, player.Yaw, player.HeadYaw);
+        PlayerWorldTransfer.ApplySameWorker(server, player, target, targetDimension, transform, TransferCarryFlags.None);
 
         Assert.Same(target, player.Dimension?.World);
         Assert.Equal(TransferState.Idle, session.TransferState);
@@ -171,7 +171,7 @@ public sealed class CrossWorkerTransferTests
                 SourceWorldId = "missing",
                 TargetWorldId = "missing_world",
                 TargetDimensionId = "overworld",
-                EntityNbt = new Basalt.Protocol.Nbt.CompoundTag()
+                SourceEntityNbt = new Basalt.Protocol.Nbt.CompoundTag()
             }
         });
 
